@@ -618,31 +618,6 @@ static void __locks_delete_block(struct file_lock *waiter)
 
 static void locks_delete_block(struct file_lock *waiter)
 {
-	/*
-	 * If fl_blocker is NULL, it won't be set again as this thread "owns"
-	 * the lock and is the only one that might try to claim the lock.
-	 *
-	 * We use acquire/release to manage fl_blocker so that we can
-	 * optimize away taking the blocked_lock_lock in many cases.
-	 *
-	 * The smp_load_acquire guarantees two things:
-	 *
-	 * 1/ that fl_blocked_requests can be tested locklessly. If something
-	 * was recently added to that list it must have been in a locked region
-	 * *before* the locked region when fl_blocker was set to NULL.
-	 *
-	 * 2/ that no other thread is accessing 'waiter', so it is safe to free
-	 * it.  __locks_wake_up_blocks is careful not to touch waiter after
-	 * fl_blocker is released.
-	 *
-	 * If a lockless check of fl_blocker shows it to be NULL, we know that
-	 * no new locks can be inserted into its fl_blocked_requests list, and
-	 * can avoid doing anything further if the list is empty.
-	 */
-	if (!smp_load_acquire(&waiter->fl_blocker) &&
-	    list_empty(&waiter->fl_blocked_requests))
-		return;
-
 	spin_lock(&blocked_lock_lock);
 	__locks_delete_block(waiter);
 
