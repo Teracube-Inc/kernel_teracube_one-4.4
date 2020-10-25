@@ -1,0 +1,7 @@
+config MTK_SCANNER
+	tristate "MediaTek scanner Support"
+	---help---
+	  This selects the  scanner connected to MediaTek chips.
+	  If you want to use scanner support, say Y or M here.
+	  If unsure, say N.
+	  Mediatek scanner module includes 1D/2D laser engines, RFID scanner etc.
