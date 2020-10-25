@@ -143,4 +143,20 @@ config TOUCHSCREEN_MTK_NT36xxx
 
 source "drivers/input/touchscreen/mediatek/NT36xxx/Kconfig"
 
+config CUSTOM_KERNEL_TOUCHPANEL
+	string "CUSTOM_KERNEL_TOUCHPANEL"
+	help
+	  To choose kernel TOUCHPANEL driver name
+
+config VANZO_TOUCHPANEL_GESTURES_SUPPORT
+	bool "VANZO_TOUCHPANEL_GESTURES_SUPPORT"
+	default n
+	help
+	  This option is used to enable 'SmwartWake' kernel support
+
+config VANZO_FTS_CHIP_TYPE_FT6336U
+	string "VANZO_FTS_CHIP_TYPE_FT6336U"
+	help
+	  To choose kernel if FT6336U chip variant is in use
+
 endif

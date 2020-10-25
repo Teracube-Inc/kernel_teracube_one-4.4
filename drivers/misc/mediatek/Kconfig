@@ -607,6 +607,45 @@ config MTK_DYNAMIC_LOAD_STORE_BYPASS_WA
 	help
 	  Disable load-store-bypassing in user-space
 
+config VANZO_INNER_PROJECT_NAME
+	string "VANZO_INNER_PROJECT_NAME"
+	help
+	  To choose VANZO_INNER_PROJECT_NAME
+
+config CUSTOM_BOOT_LOGO
+	string "CUSTOM_BOOT_LOGO"
+	help
+	  To choose CUSTOM_BOOT_LOGO
+
+config CUSTOM_KERNEL_HALL
+	string "CUSTOM_KERNEL_HALL"
+	help
+	  To choose kernel HALL driver name
+
+config VANZO_DEVICE_NAME_SUPPORT
+	bool "Enable/Disable Vanzo device name support"
+	default n
+	help
+	  To choose VANZO_DEVICE_NAME_SUPPORT
+
+config VANZO_FP_NAME_SUPPORT
+	bool "Enable/Disable Vanzo fingerprint name support"
+	default n
+	help
+	  To choose VANZO_FP_NAME_SUPPORT
+
+config VANZO_DUAL_CAM_NAME_SUPPORT
+	bool "Enable/Disable Vanzo Dual camera name support"
+	default n
+	help
+	  To choose VANZO_DUAL_CAM_NAME_SUPPORT
+
+config VANZO_FEATURE_FAKE_DUAL_CAMERA_BY_NAME
+	bool "Enable/Disable Vanzo fake camera by sensor name"
+	default n
+	help
+	  To choose VANZO_FEATURE_FAKE_DUAL_CAMERA_BY_NAME
+
 endmenu    # Misc
 
 endif

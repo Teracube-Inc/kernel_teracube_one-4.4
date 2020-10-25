@@ -2,19 +2,7 @@
 # Makefile for misc devices that really don't fit anywhere else.
 #
 LOCAL_DIR := $(GET_LOCAL_DIR)
-# Stoneoim:yucheng on: Fri, 14 Oct 2016 18:34:28 +0800
-# added for aosp management to import our variable
-project_name:=$(shell echo $(VANZO_INNER_PROJECT_NAME))
-ifneq ($(strip $(project_name)),)
--include $(srctree)/../zprojects/$(project_name)/$(project_name).mk
-ccflags-y += -I$(VANZO_PROJECT_HEADERS)
 
-# here use the CUSTOM_LK_LCM to prio the CUSTOM_LK_LCM when zprojects is open
-ifneq ($(strip $(CUSTOM_KERNEL_LCM)),)
-CUSTOM_LK_LCM = $(CUSTOM_KERNEL_LCM)
-endif
-endif
-# End of Stoneoim: yucheng
 LCM_DEFINES := $(shell echo $(CUSTOM_LK_LCM) | tr a-z A-Z)
 DEFINES += $(foreach LCM,$(LCM_DEFINES),$(LCM))
 DEFINES += MTK_LCM_PHYSICAL_ROTATION=\"$(MTK_LCM_PHYSICAL_ROTATION)\"

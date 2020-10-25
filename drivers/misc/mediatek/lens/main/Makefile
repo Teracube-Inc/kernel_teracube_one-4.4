@@ -38,15 +38,12 @@ endif
 ifneq ($(CONFIG_MTK_LENS_USE_MODULE), y)
 #
 obj-y      += main_lens.o
-project_name:=$(shell echo $(VANZO_INNER_PROJECT_NAME))
+project_name:=$(shell echo $(CONFIG_VANZO_INNER_PROJECT_NAME))
 
 ifneq ($(project_name),)
-LENS_LISTS := $(subst ",,$(CUSTOM_KERNEL_LENS))
-obj-y += $(foreach LEN,$(LENS_LISTS),common/$(LEN)/)
 
-LENS_CODE_DEFS := $(foreach LEN, $(LENS_LISTS),$(foreach v,$(shell echo $(LEN) | tr '[a-z]' '[A-Z]'), -DCONFIG_MTK_LENS_$(v)_SUPPORT))
-$(info LENS_CODE_DEFS $(LENS_CODE_DEFS))
-subdir-ccflags-y += $(LENS_CODE_DEFS)
+LENS_LISTS := $(subst ",,$(CONFIG_CUSTOM_KERNEL_LENS))
+obj-y += $(foreach LEN,$(LENS_LISTS),common/$(LEN)/)
 
 else
 

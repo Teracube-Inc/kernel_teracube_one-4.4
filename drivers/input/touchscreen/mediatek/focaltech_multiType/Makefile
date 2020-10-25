@@ -7,9 +7,9 @@ ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat/$(MTK_PLATFORM)/
 ccflags-y += -I$(srctree)/drivers/base
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/hwmon/include
 
-project_name:=$(shell echo $(VANZO_INNER_PROJECT_NAME))
+project_name:=$(shell echo $(CONFIG_VANZO_INNER_PROJECT_NAME))
 ifneq ($(strip $(project_name)),)
-    ifeq ($(strip $(VANZO_FTS_CHIP_TYPE_FT6336U)),yes)
+    ifeq ($(strip $(CONFIG_VANZO_FTS_CHIP_TYPE_FT6336U)),yes)
         subdir-ccflags-y += -DCONFIG_FTS_CHIP_TYPE_FT6336U
     endif
 endif

@@ -40,17 +40,6 @@ endif
 endif
 endef
 
-# Stoneoim:yucheng on: Sat, 15 Oct 2016 12:31:11 +0800
-# added for aosp management to import our variable
-project_name:=$(shell echo $(VANZO_INNER_PROJECT_NAME))
-    ifneq ($(strip $(project_name)),)
-    -include $(srctree)/../zprojects/$(project_name)/$(project_name).mk
-    ifneq ($(strip $(CUSTOM_KERNEL_IMGSENSOR)),)
-    CONFIG_CUSTOM_KERNEL_IMGSENSOR:=$(CUSTOM_KERNEL_IMGSENSOR)
-    endif
-    endif
-# End of Stoneoim: yucheng
-
 $(foreach drv,$(subst $\",,$(CONFIG_CUSTOM_KERNEL_IMGSENSOR)),$(eval $(call FILTER_DRV,$(drv))))
 
 ifneq ($(common_drv)),)
