@@ -4,16 +4,6 @@ ccflags-y += -I$(srctree)/drivers/misc/mediatek/sensors-1.0/accelerometer/inc
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/sensors-1.0/magnetometer/inc
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/sensors-1.0/include
 
-# Stoneoim:yucheng on: Mon, 13 Mar 2017 16:37:39 +0800
-# added for aosp management to import our variable
-project_name:=$(shell echo $(VANZO_INNER_PROJECT_NAME))
-ifneq ($(strip $(project_name)),)
--include $(srctree)/../zprojects/$(project_name)/$(project_name).mk
-VANZO_PROJECT_HEADERS:=$(srctree)/../zprojects/$(project_name)/kernel-headers
-ccflags-y += -I$(VANZO_PROJECT_HEADERS)
-endif
-# End of Stoneoim: yucheng
-
 obj-y   +=  mag.o
 obj-y   +=  mag_factory.o
 
@@ -21,9 +11,9 @@ ifeq ($(CONFIG_MTK_MAGHUB),y)
 obj-y   +=  maghub/
 else
 # Stoneoim:yucheng on: Mon, 13 Mar 2017 16:38:03 +0800
-project_name:=$(shell echo $(VANZO_INNER_PROJECT_NAME))
+project_name:=$(shell echo $(CONFIG_VANZO_INNER_PROJECT_NAME))
 ifneq ($(project_name),)
-custom_kernel_magnetometer:= $(addsuffix /, $(shell echo $(CUSTOM_KERNEL_MAGNETOMETER)))
+custom_kernel_magnetometer:= $(addsuffix /, $(shell echo $(CONFIG_CUSTOM_KERNEL_MAGNETOMETER_NAME)))
 $(info "custom_kernel_magnetometer:$(custom_kernel_magnetometer)")
 ifneq ($(custom_kernel_magnetometer),)
 obj-y += $(custom_kernel_magnetometer)

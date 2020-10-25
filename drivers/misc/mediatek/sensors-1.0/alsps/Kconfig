@@ -1,11 +1,16 @@
 
-config CUSTOM_KERNEL_ALSPS
-	bool "CUSTOM KERNEL ALSPS Config"
+config CUST_KERNEL_ALSPS
+	bool "CUST KERNEL ALSPS Config"
 	help
 	  ALSPS sensor driver to detect ambient light and the object is close
 	  or far awary from device. After configure this configuration,
 	  the specific ambient light and proximity sensor driver configuration
 	  should be configured as well.
+
+config CUSTOM_KERNEL_ALSPS_NAME
+	string "CUSTOM_KERNEL_ALSPS_NAME"
+	help
+	  Name of ALSPS sensor driver to be used
 
 config MTK_AUTO_DETECT_ALSPS
 	bool "MTK AUTO DETECT ALSPS Sensor"

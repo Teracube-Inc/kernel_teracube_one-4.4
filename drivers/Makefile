@@ -179,15 +179,16 @@ obj-$(CONFIG_ANDROID)		+= android/
 obj-$(CONFIG_NVMEM)		+= nvmem/
 obj-$(CONFIG_FPGA)		+= fpga/
 obj-$(CONFIG_TEE)		+= tee/
-ifeq ($(VANZO_DEVICE_NAME_SUPPORT),yes)
+
+ifeq ($(CONFIG_VANZO_DEVICE_NAME_SUPPORT),yes)
 subdir-ccflags-y += -DVANZO_DEVICE_NAME_SUPPORT
 endif
-ifeq ($(VANZO_FP_NAME_SUPPORT),yes)
+ifeq ($(CONFIG_VANZO_FP_NAME_SUPPORT),yes)
 subdir-ccflags-y += -DVANZO_FP_NAME_SUPPORT
 endif
-ifeq ($(VANZO_DUAL_CAM_NAME_SUPPORT),yes)
+ifeq ($(CONFIG_VANZO_DUAL_CAM_NAME_SUPPORT),yes)
 subdir-ccflags-y += -DVANZO_DUAL_CAM_NAME_SUPPORT
 endif
-ifeq ($(VANZO_FEATURE_FAKE_DUAL_CAMERA_BY_NAME),yes)
+ifeq ($(CONFIG_VANZO_FEATURE_FAKE_DUAL_CAMERA_BY_NAME),yes)
 subdir-ccflags-y += -DVANZO_FEATURE_FAKE_DUAL_CAMERA_BY_NAME
 endif

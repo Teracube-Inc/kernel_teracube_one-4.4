@@ -7,13 +7,18 @@ config MTK_AUTO_DETECT_MAGNETOMETER
 	  magnetometer, more than one ALSPS drivers can be builded in to
 	  project and be auto detected by setting this option to yes
 
-config CUSTOM_KERNEL_MAGNETOMETER
-	bool "CUSTOM KERNEL MAGNETOMETER Config"
+config CUST_KERNEL_MAGNETOMETER
+	bool "CUST KERNEL MAGNETOMETER Config"
 	help
 	  compass driver to detect compass raw data and report orientatino
 	  data. A compass is an instrument used for navigation and
 	  orientation that shows direction relative to the geographic
 	  cardinal directions, or "points".
+
+config CUSTOM_KERNEL_MAGNETOMETER_NAME
+	string "CUSTOM_KERNEL_MAGNETOMETER_NAME"
+	help
+	  Name of MAGNETOMETER sensor driver to be used
 
 source "drivers/misc/mediatek/sensors-1.0/magnetometer/maghub/Kconfig"
 source "drivers/misc/mediatek/sensors-1.0/magnetometer/akm09911-new/Kconfig"

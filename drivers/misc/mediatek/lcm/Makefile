@@ -14,20 +14,6 @@
 #
 # Makefile for misc devices that really don't fit anywhere else.
 #
-# Stoneoim:yucheng on: Fri, 14 Oct 2016 18:32:37 +0800
-# added for aosp management to import our variable
-project_name:=$(shell echo $(VANZO_INNER_PROJECT_NAME))
-ifneq ($(strip $(project_name)),)
--include $(srctree)/../zprojects/$(project_name)/$(project_name).mk
-ccflags-y += -I$(VANZO_PROJECT_HEADERS)
-
-# here use the CUSTOM_LK_LCM to prio the CUSTOM_LK_LCM when zprojects is open
-ifneq ($(strip $(CUSTOM_KERNEL_LCM)),)
-CONFIG_CUSTOM_KERNEL_LCM = $(CUSTOM_KERNEL_LCM)
-endif
-endif
-# End of Stoneoim: yucheng
-
 obj-$(CONFIG_MTK_LCM) += mt65xx_lcm_list.o        \
                          lcm_common.o             \
                          lcm_gpio.o               \

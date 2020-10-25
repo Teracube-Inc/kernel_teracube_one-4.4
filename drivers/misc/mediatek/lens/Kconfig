@@ -15,6 +15,11 @@ config MTK_LENS_USE_MODULE
 	  To compile this dirver as a module,
 	  It will be called by insmod xxx.ko in init.rc.
 
+config CUSTOM_KERNEL_LENS
+	string "CUSTOM_KERNEL_LENS"
+	help
+	  To choose kernel CUSTOM_KERNEL_LENS
+
 #
 # LENS
 #

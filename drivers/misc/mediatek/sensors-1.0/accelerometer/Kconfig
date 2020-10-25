@@ -8,13 +8,18 @@ config MTK_AUTO_DETECT_ACCELEROMETER
 	  can be configured at the same time, but only one
 	  can be probed.
 
-config CUSTOM_KERNEL_ACCELEROMETER
-	bool "CUSTOM KERNEL ACCELEROMETER Config"
+config CUST_KERNEL_ACCELEROMETER
+	bool "CUST KERNEL ACCELEROMETER Config"
 	help
 	  accelerometer sensor to detect accelerometer from x y z axis.
 	  If the platform is supported for acceleometer, this
 	  configuration should be configured, and the acceleometer
 	  driver configuration should be configured as well.
+
+config CUSTOM_KERNEL_ACCELEROMETER_NAME
+	string "CUSTOM_KERNEL_ACCELEROMETER_NAME"
+	help
+	  Name of ALSPS sensor driver to be used
 
 source "drivers/misc/mediatek/sensors-1.0/accelerometer/accelhub/Kconfig"
 source "drivers/misc/mediatek/sensors-1.0/accelerometer/bmi160-spi/Kconfig"
