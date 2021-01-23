@@ -1347,7 +1347,7 @@ static int __mt6370_run_aicl(struct mt6370_pmu_charger_data *chg_data)
 		goto out;
 
 	/* Check if there's a suitable AICL_VTH */
-	aicl_vth = mivr + 200000;
+	aicl_vth = mivr;
 	if (aicl_vth > MT6370_AICL_VTH_MAX) {
 		dev_info(chg_data->dev, "%s: no suitable VTH, vth = %d\n",
 			__func__, aicl_vth);

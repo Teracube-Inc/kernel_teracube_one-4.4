@@ -23,6 +23,14 @@ MTK_CUSTOM_PATH  := $(srctree)/drivers/misc/mediatek
 
 subdir-ccflags-y += -I$(MTK_CUSTOM_PATH)/lens/sub/inc
 
+# Stoneoim:wuchuanrong on: Thu, 10 May 2018 12:09:26 +0800
+# TODO:added for aosp management
+#
+ifneq ($(CONFIG_MTK_LENS_USE_MODULE), y)
+obj-y  += sub_lens.o
+
+else
+
 ifeq ($(CONFIG_MTK_LENS_USE_MODULE), y)
 
 SUB_CFILES += sub_lens.c
@@ -58,3 +66,6 @@ obj-y  += common/wv511aaf/
 obj-y  += common/ak7371af/
 
 endif
+#
+endif
+# End of Stoneoim: wuchuanrong

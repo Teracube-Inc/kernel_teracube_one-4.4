@@ -770,9 +770,8 @@ static long ccu_ioctl(struct file *flip, unsigned int cmd, unsigned long arg)
 		}
 	case CCU_IOCTL_SET_I2C_MODE:
 		{
-		LOG_DBG_MUST("CCU_IOCTL_SET_I2C_MODE\n");
+			ret = ccu_i2c_controller_init((enum CCU_I2C_CHANNEL)arg);
 
-		ret = ccu_i2c_controller_init((uint32_t)arg);
 			if (ret == -1) {
 				LOG_DBG("ccu_i2c_controller_init fail\n");
 				ret = -EINVAL;
@@ -793,37 +792,60 @@ static long ccu_ioctl(struct file *flip, unsigned int cmd, unsigned long arg)
 		}
 	case CCU_IOCTL_GET_SENSOR_I2C_SLAVE_ADDR:
 		{
-		struct ccu_i2c_info sensor_info[IMGSENSOR_SENSOR_IDX_MAX_NUM];
+			int32_t sensorI2cSlaveAddr[4];
 
-		LOG_DBG_MUST("CCU_IOCTL_GET_SENSOR_I2C_SLAVE_ADDR\n");
-		ccu_get_sensor_i2c_info(&sensor_info[0]);
-		ret = copy_to_user((void *)arg, &sensor_info,
-			sizeof(struct ccu_i2c_info) *
-			IMGSENSOR_SENSOR_IDX_MAX_NUM);
+			ccu_get_sensor_i2c_slave_addr(&sensorI2cSlaveAddr[0]);
+
+			ret = copy_to_user((void *)arg, &sensorI2cSlaveAddr, sizeof(int32_t) * 4);
+
 			break;
 		}
-	case CCU_IOCTL_GET_SENSOR_NAME:
-	{
-	#define SENSOR_NAME_MAX_LEN 32
-	char *sensor_names[IMGSENSOR_SENSOR_IDX_MAX_NUM];
 
-	LOG_DBG_MUST("CCU_IOCTL_GET_SENSOR_NAME\n");
-	ccu_get_sensor_name(sensor_names);
-	for (i = IMGSENSOR_SENSOR_IDX_MIN_NUM;
-		i < IMGSENSOR_SENSOR_IDX_MAX_NUM ; i++){
-		if (sensor_names[i] != NULL) {
-			ret = copy_to_user(((char *)arg+
-				SENSOR_NAME_MAX_LEN*i),
-			sensor_names[i], strlen(sensor_names[i])+1);
-			if (ret != 0) {
-				LOG_ERR(
-				"copy_to_user failed: %d\n", ret);
-				break;
+	case CCU_IOCTL_GET_SENSOR_NAME:
+		{
+			#define SENSOR_NAME_MAX_LEN 32
+
+			char *sensor_names[4];
+
+			ccu_get_sensor_name(sensor_names);
+
+			if (sensor_names[0] != NULL) {
+				ret = copy_to_user((char *)arg, sensor_names[0], strlen(sensor_names[0])+1);
+				if (ret != 0) {
+					LOG_ERR("copy_to_user 1 failed: %d\n", ret);
+					break;
+				}
 			}
-		}
-	}
-	#undef SENSOR_NAME_MAX_LEN
-	break;
+
+			if (sensor_names[1] != NULL) {
+				ret = copy_to_user(((char *)arg+SENSOR_NAME_MAX_LEN),
+					sensor_names[1], strlen(sensor_names[1])+1);
+				if (ret != 0) {
+					LOG_ERR("copy_to_user 2 failed: %d\n", ret);
+					break;
+				}
+			}
+
+			if (sensor_names[2] != NULL) {
+				ret = copy_to_user(((char *)arg+SENSOR_NAME_MAX_LEN*2),
+					sensor_names[2], strlen(sensor_names[2])+1);
+				if (ret != 0) {
+					LOG_ERR("copy_to_user 3 failed: %d\n", ret);
+					break;
+				}
+			}
+
+			if (sensor_names[3] != NULL) {
+				ret = copy_to_user(((char *)arg+SENSOR_NAME_MAX_LEN*3),
+					sensor_names[3], strlen(sensor_names[3])+1);
+				if (ret != 0) {
+					LOG_ERR("copy_to_user 4 failed: %d\n", ret);
+					break;
+				}
+			}
+
+			#undef SENSOR_NAME_MAX_LEN
+			break;
 	}
 
 	case CCU_READ_REGISTER:
@@ -906,54 +928,45 @@ static int ccu_release(struct inode *inode, struct file *flip)
 static int ccu_mmap(struct file *flip, struct vm_area_struct *vma)
 {
 	unsigned long length = 0;
-	unsigned long pfn = 0x0;
+	unsigned int pfn = 0x0;
 
 	length = (vma->vm_end - vma->vm_start);
 	/*  */
 	vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
 	pfn = vma->vm_pgoff << PAGE_SHIFT;
 
-	LOG_DBG("CCU_mmap: vm_pgoff(0x%lx),pfn(0x%lx),phy(0x%lx),",
-		vma->vm_pgoff, pfn, vma->vm_pgoff << PAGE_SHIFT);
-	LOG_DBG("vm_start(0x%lx),vm_end(0x%lx),length(0x%lx)\n",
-	    vma->vm_start, vma->vm_end, length);
+	LOG_DBG
+	    ("CCU_mmap: vm_pgoff(0x%lx),pfn(0x%x),phy(0x%lx),vm_start(0x%lx),vm_end(0x%lx),length(0x%lx)\n",
+	     vma->vm_pgoff, pfn, vma->vm_pgoff << PAGE_SHIFT, vma->vm_start, vma->vm_end, length);
 
 	/*if (pfn >= CCU_REG_BASE_HW) {*/
 
 		if (pfn == (ccu_hw_base - CCU_HW_OFFSET)) {
 			if (length > PAGE_SIZE) {
-				LOG_ERR("mmap range error :module(0x%lx),",
-					pfn);
 				LOG_ERR
-			    ("length(0x%lx),CCU_HW_BASE(0x%x)!\n",
-				    length, 0x4000);
+				    ("mmap range error :module(0x%x),length(0x%lx),CCU_HW_BASE(0x%x)!\n",
+				     pfn, length, 0x4000);
 				return -EAGAIN;
 			}
 		} else if (pfn == CCU_CAMSYS_BASE) {
 			if (length > CCU_CAMSYS_SIZE) {
-				LOG_ERR("mmap range error :module(0x%lx),",
-					pfn);
 				LOG_ERR
-				("length(0x%lx),CCU_CAMSYS_BASE_HW(0x%x)!\n",
-				    length, 0x4000);
+				    ("mmap range error :module(0x%x),length(0x%lx),CCU_CAMSYS_BASE_HW(0x%x)!\n",
+				     pfn, length, 0x4000);
 				return -EAGAIN;
 			}
 		} else if (pfn == CCU_PMEM_BASE) {
 			if (length > CCU_PMEM_SIZE) {
-				LOG_ERR("mmap range error :module(0x%lx),",
-					pfn);
 				LOG_ERR
-				("length(0x%lx),CCU_PMEM_BASE_HW(0x%x)!\n",
-				    length, 0x4000);
+				    ("mmap range error :module(0x%x),length(0x%lx),CCU_PMEM_BASE_HW(0x%x)!\n",
+				     pfn, length, 0x4000);
 				return -EAGAIN;
 			}
 		} else if (pfn == CCU_DMEM_BASE) {
 			if (length > CCU_DMEM_SIZE) {
-				LOG_ERR("mmap range error :module(0x%lx),",
-					pfn);
 				LOG_ERR
-				("length(0x%lx),CCU_PMEM_BASE_HW(0x%x)!\n",
-				    length, 0x4000);
+				    ("mmap range error :module(0x%x),length(0x%lx),CCU_PMEM_BASE_HW(0x%x)!\n",
+				     pfn, length, 0x4000);
 				return -EAGAIN;
 			}
 		} else {
@@ -1100,28 +1113,28 @@ static int ccu_probe(struct platform_device *pdev)
 			/*remap ccu_base*/
 			phy_addr = ccu_hw_base;
 			phy_size = 0x1000;
-			g_ccu_device->ccu_base = (unsigned long)ioremap(phy_addr, phy_size);
+			g_ccu_device->ccu_base = (unsigned long)ioremap_wc(phy_addr, phy_size);
 			LOG_INF("ccu_base pa: 0x%x, size: 0x%x\n", phy_addr, phy_size);
 			LOG_INF("ccu_base va: 0x%lx\n", g_ccu_device->ccu_base);
 
 			/*remap dmem_base*/
 			phy_addr = CCU_DMEM_BASE;
 			phy_size = CCU_DMEM_SIZE;
-			g_ccu_device->dmem_base = (unsigned long)ioremap(phy_addr, phy_size);
+			g_ccu_device->dmem_base = (unsigned long)ioremap_wc(phy_addr, phy_size);
 			LOG_INF("dmem_base pa: 0x%x, size: 0x%x\n", phy_addr, phy_size);
 			LOG_INF("dmem_base va: 0x%lx\n", g_ccu_device->dmem_base);
 
 			/*remap camsys_base*/
 			phy_addr = CCU_CAMSYS_BASE;
 			phy_size = CCU_CAMSYS_SIZE;
-			g_ccu_device->camsys_base = (unsigned long)ioremap(phy_addr, phy_size);
+			g_ccu_device->camsys_base = (unsigned long)ioremap_wc(phy_addr, phy_size);
 			LOG_INF("camsys_base pa: 0x%x, size: 0x%x\n", phy_addr, phy_size);
 			LOG_INF("camsys_base va: 0x%lx\n", g_ccu_device->camsys_base);
 
 			/*remap n3d_a_base*/
 			phy_addr = CCU_N3D_A_BASE;
 			phy_size = CCU_N3D_A_SIZE;
-			g_ccu_device->n3d_a_base = (unsigned long)ioremap(phy_addr, phy_size);
+			g_ccu_device->n3d_a_base = (unsigned long)ioremap_wc(phy_addr, phy_size);
 			LOG_INF("n3d_a_base pa: 0x%x, size: 0x%x\n", phy_addr, phy_size);
 			LOG_INF("n3d_a_base va: 0x%lx\n", g_ccu_device->n3d_a_base);
 

@@ -49,6 +49,7 @@ obj-y += common/ak7371af/
 ifeq ($(CONFIG_MTK_LENS_DW9800WAF_SUPPORT), y)
   obj-y += common/dw9800waf/
 endif
+obj-y  += common/dw9767af/
 obj-y += common/bu64748af/
 obj-y += common/lc898217af/
 

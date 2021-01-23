@@ -62,21 +62,21 @@ static MUINT32 g_sync_mode = SENSOR_NO_SYNC_MODE;
 
 static struct imgsensor_info_struct imgsensor_info = {
 	.sensor_id = S5K5E8YX_SENSOR_ID,
-
-	.checksum_value = 0xa54a68ca,
-
+	
+	.checksum_value = 0x2ae69154,
+	
 	.pre = {
-		.pclk = 168000000,	/* record different mode's pclk */
-		.linelength = 5200,	/* record different mode's linelength */
-		.framelength = 1080,	/* record different mode's framelength */
-		.startx = 0,	/* record different mode's startx of grabwindow */
-		.starty = 0,	/* record different mode's starty of grabwindow */
-		.grabwindow_width = 1296,	/* record different mode's width of grabwindow */
-		.grabwindow_height = 972,	/* record different mode's height of grabwindow */
-		/*       following for MIPIDataLowPwr2HighSpeedSettleDelayCount by different scenario   */
+		.pclk = 168000000,				//record different mode's pclk
+		.linelength = 5200,				//record different mode's linelength
+		.framelength = 1062,			//record different mode's framelength
+		.startx = 0,					//record different mode's startx of grabwindow
+		.starty = 0,					//record different mode's starty of grabwindow
+		.grabwindow_width = 1296,		//record different mode's width of grabwindow
+		.grabwindow_height = 972,		//record different mode's height of grabwindow
+		/*	 following for MIPIDataLowPwr2HighSpeedSettleDelayCount by different scenario	*/
 		.mipi_data_lp2hs_settle_dc = 85,
-		/*       following for GetDefaultFramerateByScenario()  */
-		.max_framerate = 300,
+		/*	 following for GetDefaultFramerateByScenario()	*/
+		.max_framerate = 300,	
 	},
 	.cap = {
 		.pclk = 168000000,
@@ -162,11 +162,9 @@ static struct imgsensor_info_struct imgsensor_info = {
 
 	.isp_driving_current = ISP_DRIVING_6MA,
 	.sensor_interface_type = SENSOR_INTERFACE_TYPE_MIPI,
-	.mipi_sensor_type = MIPI_OPHY_NCSI2,	/* 0,MIPI_OPHY_NCSI2;  1,MIPI_OPHY_CSI2 */
-	.mipi_settle_delay_mode = MIPI_SETTLEDELAY_MANUAL,	/* 0,MIPI_SETTLEDELAY_AUTO;
-								 * 1,MIPI_SETTLEDELAY_MANNUAL
-								 */
-	.sensor_output_dataformat = SENSOR_OUTPUT_FORMAT_RAW_MONO,
+	.mipi_sensor_type = MIPI_OPHY_NCSI2, //0,MIPI_OPHY_NCSI2;  1,MIPI_OPHY_CSI2
+	.mipi_settle_delay_mode = MIPI_SETTLEDELAY_AUTO,//0,MIPI_SETTLEDELAY_AUTO; 1,MIPI_SETTLEDELAY_MANNUAL
+	.sensor_output_dataformat = SENSOR_OUTPUT_FORMAT_RAW_Gr,
 	.mclk = 24,
 	.mipi_lane_num = SENSOR_MIPI_2_LANE,
 	.i2c_addr_table = {0x20, 0x5a, 0xff},
@@ -174,7 +172,7 @@ static struct imgsensor_info_struct imgsensor_info = {
 
 
 static struct imgsensor_struct imgsensor = {
-	.mirror = IMAGE_HV_MIRROR,	/* mirrorflip information */
+	.mirror = IMAGE_NORMAL,		/* mirrorflip information */
 	.sensor_mode = IMGSENSOR_MODE_INIT,	/* IMGSENSOR_MODE enum value,record current sensor mode,
 						 * such as: INIT, Preview, Capture, Video,High Speed Video, Slim Video
 						 */
@@ -245,7 +243,24 @@ static void set_dummy(void)
 
 static kal_uint32 return_sensor_id(void)
 {
-	return ((read_cmos_sensor(0x0000) << 8) | read_cmos_sensor(0x0001));
+
+    int vendor_id=0;
+    int module_id=0;
+	write_cmos_sensor(0x0a00, 0x04);
+	write_cmos_sensor(0x0a02, 0x04);
+	write_cmos_sensor(0x0a00, 0x01);
+
+        vendor_id = read_cmos_sensor(0x0A05);
+
+	write_cmos_sensor(0x0a00, 0x04);
+	write_cmos_sensor(0x0a00, 0x00);
+        printk("vendor_id = 0x%x\n",vendor_id);
+        if(vendor_id == 0x49)
+            module_id=1;
+
+
+    return (((read_cmos_sensor(0x0000) << 8) | read_cmos_sensor(0x0001))+module_id);
+	
 }
 
 
@@ -529,46 +544,46 @@ static void sensor_init(void)
 {
 	LOG_INF("E\n");
 
-	/* +++++++++++++++++++++++++++// */
-	/* Reset for operation */
-	/* Streaming off */
-	write_cmos_sensor(0x0100, 0x00);
-
-	write_cmos_sensor(0x3906, 0x7E);
-	write_cmos_sensor(0x3C01, 0x0F);
-	write_cmos_sensor(0x3C14, 0x00);
-	write_cmos_sensor(0x3235, 0x08);
-	write_cmos_sensor(0x3063, 0x2E);
-	write_cmos_sensor(0x307A, 0x10);
-	write_cmos_sensor(0x307B, 0x0E);	/* 20150713 */
-	write_cmos_sensor(0x3079, 0x20);
-	write_cmos_sensor(0x3070, 0x05);
-	write_cmos_sensor(0x3067, 0x06);
-	write_cmos_sensor(0x3071, 0x62);
-	write_cmos_sensor(0x3203, 0x43);
-	write_cmos_sensor(0x3205, 0x43);
-	write_cmos_sensor(0x320b, 0x42);	/* 20150713 */
-	write_cmos_sensor(0x3007, 0x00);
-	write_cmos_sensor(0x3008, 0x14);
-	write_cmos_sensor(0x3020, 0x58);
-	write_cmos_sensor(0x300D, 0x34);
-	write_cmos_sensor(0x300E, 0x17);
-	write_cmos_sensor(0x3021, 0x02);
-	write_cmos_sensor(0x3010, 0x59);
-	write_cmos_sensor(0x3002, 0x01);
-	write_cmos_sensor(0x3005, 0x01);
-	write_cmos_sensor(0x3008, 0x04);
-	write_cmos_sensor(0x300F, 0x70);
-	write_cmos_sensor(0x3010, 0x69);
-	write_cmos_sensor(0x3017, 0x10);
-	write_cmos_sensor(0x3019, 0x19);
-	write_cmos_sensor(0x300C, 0x62);
-	write_cmos_sensor(0x3064, 0x10);
-	write_cmos_sensor(0x323B, 0x02);	/* ±ÜÃâflipºóËÄÖÜÆ«ºì */
-	write_cmos_sensor(0x3C08, 0x0E);
-	write_cmos_sensor(0x3C09, 0x10);
-	write_cmos_sensor(0x3C31, 0x0D);
-	write_cmos_sensor(0x3C32, 0xAC);
+   // +++++++++++++++++++++++++++//                                                               
+	// Reset for operation     
+	//Streaming off
+	write_cmos_sensor(0x0100,0x00);
+   
+	write_cmos_sensor(0x3906,0x7E);
+	write_cmos_sensor(0x3C01,0x0F);
+	write_cmos_sensor(0x3C14,0x00);
+	write_cmos_sensor(0x3235,0x08);
+	write_cmos_sensor(0x3063,0x2E);
+	write_cmos_sensor(0x307A,0x10);
+	write_cmos_sensor(0x307B,0x0E);//20150713
+	write_cmos_sensor(0x3079,0x20);
+	write_cmos_sensor(0x3070,0x05);
+	write_cmos_sensor(0x3067,0x06);
+	write_cmos_sensor(0x3071,0x62);
+	write_cmos_sensor(0x3203,0x43);
+	write_cmos_sensor(0x3205,0x43);
+	write_cmos_sensor(0x320b,0x42);//20150713
+	write_cmos_sensor(0x323b,0x02);//add for Color difference between Normal & Flip
+	write_cmos_sensor(0x3007,0x00);
+	write_cmos_sensor(0x3008,0x14);
+	write_cmos_sensor(0x3020,0x58);
+	write_cmos_sensor(0x300D,0x34);
+	write_cmos_sensor(0x300E,0x17);
+	write_cmos_sensor(0x3021,0x02);
+	write_cmos_sensor(0x3010,0x59);
+	write_cmos_sensor(0x3002,0x01);
+	write_cmos_sensor(0x3005,0x01);
+	write_cmos_sensor(0x3008,0x04);
+	write_cmos_sensor(0x300F,0x70);
+	write_cmos_sensor(0x3010,0x69);
+	write_cmos_sensor(0x3017,0x10);
+	write_cmos_sensor(0x3019,0x19);
+	write_cmos_sensor(0x300C,0x62);
+	write_cmos_sensor(0x3064,0x10);
+	write_cmos_sensor(0x3C08,0x0E);
+	write_cmos_sensor(0x3C09,0x10);
+	write_cmos_sensor(0x3C31,0x0D);
+	write_cmos_sensor(0x3C32,0xAC);
 
 	/* sensor otp bpc */
 	write_cmos_sensor(0x3303, 0x02);
@@ -579,87 +594,83 @@ static void sensor_init(void)
 
 static void preview_setting(void)
 {
-	/* +++++++++++++++++++++++++++// */
-	/* Reset for operation */
-
-	/*
-	 * $MV1[MCLK:24,Width:1296,Height:792,Format:MIPI_RAW10,mipi_lane:2,
-	 * mipi_datarate:836,pvi_pclk_inverwrite_cmos_sensor(0xe:0]);
-	 */
-	/* Streaming off */
-	write_cmos_sensor(0x0100, 0x00);
-	/* Delay 1 frame */
-	mDELAY(33);
-	/* Extclk_frequency_mhz */
-	write_cmos_sensor(0x0136, 0x18);
-	write_cmos_sensor(0x0137, 0x00);
-
-	write_cmos_sensor(0x0305, 0x06);	/* pre_pll_clk_div [5:0] */
-	write_cmos_sensor(0x0306, 0x18);	/* pre_pll2_clk_div [15:8] */
-	write_cmos_sensor(0x0307, 0xA8);	/* pll_multiplier */
-	write_cmos_sensor(0x0308, 0x34);	/* pll2_multiplier */
-	write_cmos_sensor(0x0309, 0x42);	/* op_pix_clk_div */
-	write_cmos_sensor(0x3C1F, 0x00);	/* reg_pll_s */
-	write_cmos_sensor(0x3C17, 0x00);	/* reg_pll_s2 */
-	write_cmos_sensor(0x3C0B, 0x04);	/* reg_sys_clk_byp */
-	write_cmos_sensor(0x3C1C, 0x47);	/* reg_div_sys [7:4], reg_div_dbr[3:0] (only can change div_sys) */
-	write_cmos_sensor(0x3C1D, 0x15);	/* reg_div_gclk[7:4], reg_pll_i[3:0] */
-	/* reg_outclk_pll_clk_sel[2], outclk_pll_extclk_sel[1], main_pll_extclk_sel[0] */
-	write_cmos_sensor(0x3C14, 0x04);
-	write_cmos_sensor(0x3C16, 0x00);	/* reg_pll2_pd[0] (0:pll2 on, 1:pll2 off) */
-	/* requested_link_bit_rate_mbps  836Mbps/lane  ox0344 */
-	write_cmos_sensor(0x0820, 0x03);
-	write_cmos_sensor(0x0821, 0x44);
-
-	write_cmos_sensor(0x0114, 0x01);	/* CSI_lane_mode 2lane */
-	/* x_addr_start */
-	write_cmos_sensor(0x0344, 0x00);
-	write_cmos_sensor(0x0345, 0x08);
-	/* y_addr_start */
-	write_cmos_sensor(0x0346, 0x00);
-	write_cmos_sensor(0x0347, 0x08);
-	/* x_addr_end */
-	write_cmos_sensor(0x0348, 0x0A);
-	write_cmos_sensor(0x0349, 0x27);
-	/* y_addr_end */
-	write_cmos_sensor(0x034A, 0x07);
-	write_cmos_sensor(0x034B, 0x9F);
-	/* x_output_size */
-	write_cmos_sensor(0x034C, 0x05);
-	write_cmos_sensor(0x034D, 0x10);
-	/* y_output_size */
-	write_cmos_sensor(0x034E, 0x03);
-	write_cmos_sensor(0x034F, 0xCC);
-
-	write_cmos_sensor(0x0900, 0x01);	/* binning_mode (0: disable, 1: enable) */
-	write_cmos_sensor(0x0901, 0x22);	/* binning_type(Column, Row) */
-	write_cmos_sensor(0x0381, 0x01);	/* x_even_inc */
-	write_cmos_sensor(0x0383, 0x01);	/* x_odd_inc */
-	write_cmos_sensor(0x0385, 0x01);	/* y_even_inc */
-	write_cmos_sensor(0x0387, 0x03);	/* y_odd_inc */
-	/* frame_length_lines */
-	write_cmos_sensor(0x0340, 0x04);
-	write_cmos_sensor(0x0341, 0x38);
-	/* line_length_pck */
-	write_cmos_sensor(0x0342, 0x14);
-	write_cmos_sensor(0x0343, 0x50);
-	/* fine_integration_time */
-	write_cmos_sensor(0x0200, 0x00);
-	write_cmos_sensor(0x0201, 0x00);
-	/* coarse_integration_time */
-	write_cmos_sensor(0x0202, 0x03);
-	write_cmos_sensor(0x0203, 0xDE);
-
-	write_cmos_sensor(0x3303, 0x02);	/* bpmarker_allcure_en[1], bpmarker_flat2bit_bypass[0] */
-	write_cmos_sensor(0x3400, 0x01);	/* shade_bypass LSC off */
-	/* Streaming on */
-	write_cmos_sensor(0x3C0D, 0x04);
-	write_cmos_sensor(0x0100, 0x01);
-	write_cmos_sensor(0x3C22, 0x00);
-	write_cmos_sensor(0x3C22, 0x00);	/* interval */
-	write_cmos_sensor(0x3C0D, 0x00);	/* pll select */
-
-}				/*      preview_setting  */
+	// +++++++++++++++++++++++++++//                                                               
+	// Reset for operation                                                                         
+	
+	//$MV1[MCLK:24,Width:1296,Height:792,Format:MIPI_RAW10,mipi_lane:2,mipi_datarate:836,pvi_pclk_inverwrite_cmos_sensor(0xe:0]);
+	//Streaming off
+	write_cmos_sensor(0x0100,0x00);
+	//Delay 1 frame
+	mDELAY(33);    
+	//Extclk_frequency_mhz
+	write_cmos_sensor(0x0136,0x18);
+	write_cmos_sensor(0x0137,0x00);
+	
+	write_cmos_sensor(0x0305,0x06); //pre_pll_clk_div [5:0]
+	write_cmos_sensor(0x0306,0x18); //pre_pll2_clk_div [15:8]
+	write_cmos_sensor(0x0307,0xA8); //pll_multiplier
+	write_cmos_sensor(0x0308,0x34); //pll2_multiplier
+	write_cmos_sensor(0x0309,0x42); //op_pix_clk_div
+	write_cmos_sensor(0x3C1F,0x00); //reg_pll_s
+	write_cmos_sensor(0x3C17,0x00); //reg_pll_s2
+	write_cmos_sensor(0x3C0B,0x04); //reg_sys_clk_byp
+	write_cmos_sensor(0x3C1C,0x47); //reg_div_sys [7:4], reg_div_dbr[3:0] (only can change div_sys)
+	write_cmos_sensor(0x3C1D,0x15); //reg_div_gclk[7:4], reg_pll_i[3:0]
+	write_cmos_sensor(0x3C14,0x04); //reg_outclk_pll_clk_sel[2], outclk_pll_extclk_sel[1], main_pll_extclk_sel[0]
+	write_cmos_sensor(0x3C16,0x00); //reg_pll2_pd[0] (0:pll2 on, 1:pll2 off)
+	//requested_link_bit_rate_mbps  836Mbps/lane  ox0344
+	write_cmos_sensor(0x0820,0x03);
+	write_cmos_sensor(0x0821,0x44);
+	
+	write_cmos_sensor(0x0114,0x01); //CSI_lane_mode 2lane
+	//x_addr_start
+	write_cmos_sensor(0x0344,0x00);
+	write_cmos_sensor(0x0345,0x08);
+	//y_addr_start
+	write_cmos_sensor(0x0346,0x00);
+	write_cmos_sensor(0x0347,0x08);
+	//x_addr_end
+	write_cmos_sensor(0x0348,0x0A);
+	write_cmos_sensor(0x0349,0x27);
+	//y_addr_end
+	write_cmos_sensor(0x034A,0x07);
+	write_cmos_sensor(0x034B,0x9F);
+	//x_output_size
+	write_cmos_sensor(0x034C,0x05);
+	write_cmos_sensor(0x034D,0x10);
+	//y_output_size
+	write_cmos_sensor(0x034E,0x03);
+	write_cmos_sensor(0x034F,0xCC);
+	
+	write_cmos_sensor(0x0900,0x01); //binning_mode (0: disable, 1: enable)
+	write_cmos_sensor(0x0901,0x22); //binning_type(Column, Row)
+	write_cmos_sensor(0x0381,0x01); //x_even_inc
+	write_cmos_sensor(0x0383,0x01); //x_odd_inc
+	write_cmos_sensor(0x0385,0x01); //y_even_inc
+	write_cmos_sensor(0x0387,0x03); //y_odd_inc
+	//frame_length_lines
+	write_cmos_sensor(0x0340,0x04);
+	write_cmos_sensor(0x0341,0x26);
+	//line_length_pck
+	write_cmos_sensor(0x0342,0x14);
+	write_cmos_sensor(0x0343,0x50);
+	//fine_integration_time
+	write_cmos_sensor(0x0200,0x00);
+	write_cmos_sensor(0x0201,0x00);
+	//coarse_integration_time
+	write_cmos_sensor(0x0202,0x03);
+	write_cmos_sensor(0x0203,0xDE);
+	
+	write_cmos_sensor(0x3303,0x02); //bpmarker_allcure_en[1], bpmarker_flat2bit_bypass[0]	
+	write_cmos_sensor(0x3400,0x01); //shade_bypass LSC off
+	//Streaming on
+	write_cmos_sensor(0x3C0D,0x04);
+	write_cmos_sensor(0x0100,0x01);
+	write_cmos_sensor(0x3C22,0x00);
+	write_cmos_sensor(0x3C22,0x00); //interval
+	write_cmos_sensor(0x3C0D,0x00); //pll select
+	
+}	/*	preview_setting  */
 
 static void capture_setting(kal_uint16 currefps)
 {

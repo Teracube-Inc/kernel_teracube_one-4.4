@@ -92,6 +92,7 @@ struct GPIO {
 
 enum IMGSENSOR_RETURN imgsensor_hw_gpio_open(struct IMGSENSOR_HW_DEVICE **pdevice);
 extern struct platform_device *gpimgsensor_hw_platform_device;
+extern int pinSetIdx;
 
 #endif
 

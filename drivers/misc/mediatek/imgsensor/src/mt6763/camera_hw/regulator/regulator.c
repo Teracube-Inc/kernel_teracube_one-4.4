@@ -32,13 +32,14 @@ struct REGULATOR_CTRL regulator_control[REGULATOR_TYPE_MAX_NUM] = {
 	{"vcama"},
 	{"vcamd"},
 	{"vcamio"},
-	{"vcamaf"},
+	{"vldo28"},
 	{"vcama_sub"},
 	{"vcamd_sub"},
 	{"vcamio_sub"},
-	{"vcama_main2"},
-	{"vcamd_main2"},
+	{"vcama"},
+	{"vcamd"},
 	{"vcamio_main2"},
+	{"vldo28"},
 	{"vcama_sub2"},
 	{"vcamd_sub2"},
 	{"vcamio_sub2"}
@@ -105,7 +106,7 @@ static enum IMGSENSOR_RETURN regulator_set(
 	atomic_t	*enable_cnt;
 
 	if ((sensor_idx == IMGSENSOR_SENSOR_IDX_MAIN && pin > IMGSENSOR_HW_PIN_AFVDD) ||
-	    pin > IMGSENSOR_HW_PIN_DOVDD   ||
+	    //pin > IMGSENSOR_HW_PIN_DOVDD   ||
 	    pin < IMGSENSOR_HW_PIN_AVDD    ||
 	    pin_state < IMGSENSOR_HW_PIN_STATE_LEVEL_0 ||
 	    pin_state > IMGSENSOR_HW_PIN_STATE_LEVEL_2800)

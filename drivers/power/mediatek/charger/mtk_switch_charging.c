@@ -193,6 +193,13 @@ static void swchg_select_charging_current_limit(struct charger_manager *info)
 	} else if (info->chr_type == NONSTANDARD_CHARGER) {
 		pdata->input_current_limit = info->data.non_std_ac_charger_current;
 		pdata->charging_current_limit = info->data.non_std_ac_charger_current;
+/* Foeec:zhangqingzhan on: Fri, 13 Mar 2020 15:20:13 +0800
+ *for wireless charger
+ */
+	} else if (info->chr_type == WIRELESS_CHARGER) {
+		pdata->input_current_limit = info->data.wpc_charger_current;
+		pdata->charging_current_limit = info->data.wpc_charger_current;
+// End of Foeec: zhangqingzhan
 	} else if (info->chr_type == STANDARD_CHARGER) {
 		pdata->input_current_limit = info->data.ac_charger_input_current;
 		pdata->charging_current_limit = info->data.ac_charger_current;

@@ -33,6 +33,23 @@ else
   subdir-ccflags-y += -I$(MTK_CUSTOM_PATH)/lens/main/common/bu63169af/inc
 endif
 
+# Stoneoim:wuchuanrong on: Thu, 10 May 2018 10:19:47 +0800
+# TODO:added for aosp management
+ifneq ($(CONFIG_MTK_LENS_USE_MODULE), y)
+#
+obj-y      += main_lens.o
+project_name:=$(shell echo $(VANZO_INNER_PROJECT_NAME))
+
+ifneq ($(project_name),)
+LENS_LISTS := $(subst ",,$(CUSTOM_KERNEL_LENS))
+obj-y += $(foreach LEN,$(LENS_LISTS),common/$(LEN)/)
+
+LENS_CODE_DEFS := $(foreach LEN, $(LENS_LISTS),$(foreach v,$(shell echo $(LEN) | tr '[a-z]' '[A-Z]'), -DCONFIG_MTK_LENS_$(v)_SUPPORT))
+$(info LENS_CODE_DEFS $(LENS_CODE_DEFS))
+subdir-ccflags-y += $(LENS_CODE_DEFS)
+
+else
+
 ifeq ($(CONFIG_MTK_LENS_USE_MODULE), y)
 
 MAIN_CFILES += main_lens.c
@@ -43,6 +60,8 @@ MAIN_CFILES  += common/bu6429af/BU6429AF.c
 MAIN_CFILES  += common/bu6429af/bu64748af.c
 MAIN_CFILES  += common/bu6429af/bu64748_function.c
 MAIN_CFILES += common/dw9714af/DW9714AF.c
+MAIN_CFILES += common/dw9763af/DW9763AF.c
+MAIN_CFILES += common/dw9767af/DW9767AF.c
 MAIN_CFILES  += common/dw9814af/DW9814AF.c
 MAIN_CFILES  += common/dw9718af/DW9718AF.c
 MAIN_CFILES  += common/dw9718saf/DW9718SAF.c
@@ -90,6 +109,8 @@ obj-y  += common/bu6424af/
 obj-y  += common/bu6429af/
 obj-y  += common/bu64748af/
 obj-y  += common/dw9714af/
+obj-y  += common/dw9763af/
+obj-y  += common/dw9767af/
 obj-y  += common/dw9814af/
 obj-y  += common/dw9718af/
 obj-y  += common/dw9718saf/
@@ -116,3 +137,7 @@ else
 endif
 
 endif
+#
+endif
+endif
+# End of Stoneoim: wuchuanrong

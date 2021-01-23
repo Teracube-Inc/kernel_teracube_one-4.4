@@ -887,8 +887,6 @@ static void cmdq_core_copy_v3_struct(struct TaskStruct *pTask, struct cmdqComman
 		pCommandDesc->replace_instr.number >= CMDQ_MAX_COMMAND_SIZE) {
 		pTask->replace_instr.position = (cmdqU32Ptr_t) (unsigned long)NULL;
 		pTask->replace_instr.number = 0;
-		if (pCommandDesc->replace_instr.number >= CMDQ_MAX_COMMAND_SIZE)
-			CMDQ_LOG("Invalid replace_instr.number...\n");
 		return;
 	}
 
@@ -902,15 +900,7 @@ static void cmdq_core_copy_v3_struct(struct TaskStruct *pTask, struct cmdqComman
 		pTask->replace_instr.number = 0;
 		return;
 	}
-
-	if (copy_from_user((void *)(unsigned long)p_instr_position,
-			CMDQ_U32_PTR(pCommandDesc->replace_instr.position), array_num)) {
-		kfree(p_instr_position);
-		pTask->replace_instr.position = (cmdqU32Ptr_t)(unsigned long)NULL;
-		pTask->replace_instr.number = 0;
-		return;
-	}
-
+	memcpy(p_instr_position, CMDQ_U32_PTR(pCommandDesc->replace_instr.position), array_num);
 	pTask->replace_instr.position = (cmdqU32Ptr_t) (unsigned long)p_instr_position;
 }
 
@@ -2275,14 +2265,7 @@ static void cmdq_task_init_profile_marker_data(struct cmdqCommandStruct *pComman
 	uint32_t i;
 
 	pTask->profileMarker.count = pCommandDesc->profileMarker.count;
-	if (pTask->profileMarker.count > CMDQ_MAX_PROFILE_MARKER_IN_TASK)
-		pTask->profileMarker.count = CMDQ_MAX_PROFILE_MARKER_IN_TASK;
-
 	pTask->profileMarker.hSlot = pCommandDesc->profileMarker.hSlot;
-	if (pTask->profileMarker.hSlot & 0x3) {
-		CMDQ_ERR("hSlot is not aligned to 4 byte, reset to 0LL\n");
-		pTask->profileMarker.hSlot = 0LL;
-	}
 	for (i = 0; i < CMDQ_MAX_PROFILE_MARKER_IN_TASK; i++)
 		pTask->profileMarker.tag[i] = pCommandDesc->profileMarker.tag[i];
 }
@@ -3498,371 +3481,96 @@ void cmdq_core_append_backup_reg_inst(struct TaskStruct *task,
 		((1 << 31) | (1 << 16)));
 }
 
-/* #define CMDQ_DEBUG_ADDR */
-
-enum xpr_rt_state {
-	XPR_UNLOCK,
-	XPR_UNKNOWN,
-	XPR_REG,
-	XPR_DMA
-};
-
-struct cmdq_check {
-	union {
-		struct {
-			u16 ci:16;
-			u16 bi:16;
-		};
-		u32 val;
-	};
-	u16 ai:16;
-	u8 sop:5;
-	u8 opt:3;
-	u8 op:8;
-};
-
-enum xpr_id {
-	xpr_r0 = CMDQ_DATA_REG_JPEG,
-	xpr_p1 = CMDQ_DATA_REG_JPEG_DST,
-	xpr_r5 = CMDQ_DATA_REG_2D_SHARPNESS_0,
-	xpr_p4 = CMDQ_DATA_REG_2D_SHARPNESS_0_DST,
-	xpr_r10 = CMDQ_DATA_REG_2D_SHARPNESS_1,
-	xpr_p6 = CMDQ_DATA_REG_2D_SHARPNESS_1_DST,
-	xpr_r4 = CMDQ_DATA_REG_PQ_COLOR,
-	xpr_p3 = CMDQ_DATA_REG_PQ_COLOR,
-	xpr_r11 = CMDQ_DATA_REG_DEBUG,
-	xpr_p7 = CMDQ_DATA_REG_DEBUG_DST,
-	xpr_spr0 = 0,
-	xpr_total = 32,
-};
-
-#include "mdp_base.h"
-
-static bool cmdq_mdp_is_reg_valid(const unsigned long pa)
+static bool cmdq_core_check_gpr_valid(const uint32_t gpr, const bool val)
 {
-	u32 base = (u32)(pa & 0xFFFFF000);
-	u32 i;
-	static u32 last_idx;
-
-	if (base == mdp_base[last_idx])
-		return true;
-
-	for (i = 0; i < ARRAY_SIZE(mdp_base); i++)
-		if (base == mdp_base[i]) {
-			last_idx = i;
+	if (val)
+		switch (gpr) {
+		case CMDQ_DATA_REG_JPEG:
+		case CMDQ_DATA_REG_PQ_COLOR:
+		case CMDQ_DATA_REG_2D_SHARPNESS_0:
+		case CMDQ_DATA_REG_2D_SHARPNESS_1:
+		case CMDQ_DATA_REG_DEBUG:
 			return true;
+		default:
+			return false;
 		}
-
-#ifdef CMDQ_DEBUG_ADDR
-	CMDQ_LOG("[note]blocking pa:%#010lx\n", pa);
-	return true;
-#else
+	else
+		switch (gpr >> 16) {
+		case CMDQ_DATA_REG_JPEG_DST:
+		case CMDQ_DATA_REG_PQ_COLOR_DST:
+		case CMDQ_DATA_REG_2D_SHARPNESS_0:
+		case CMDQ_DATA_REG_2D_SHARPNESS_0_DST:
+		case CMDQ_DATA_REG_2D_SHARPNESS_1_DST:
+		case CMDQ_DATA_REG_DEBUG_DST:
+			return true;
+		default:
+			return false;
+		}
 	return false;
-#endif
 }
 
-static bool cmdq_mdp_is_sub_valid(u8 subsys, u16 offset)
+static bool cmdq_core_check_dma_addr_valid(const unsigned long pa)
 {
-	u32 base = (offset & 0xF000) | subsys;
-	u32 i;
-	static u32 last_idx;
-
-	if (base == mdp_sub_base[last_idx])
-		return true;
-
-	for (i = 0; i < ARRAY_SIZE(mdp_sub_base); i++)
-		if (base == mdp_sub_base[i]) {
-			last_idx = i;
-			return true;
-		}
-#ifdef CMDQ_DEBUG_ADDR
-	CMDQ_LOG("[note]blocking subsys:%#04x %#06x\n", (u32)subsys, (u32)offset);
-	return true;
-#else
-	return false;
-#endif
-}
-
-static bool cmdq_core_check_dma_valid(const unsigned long pa)
-{
-	struct WriteAddrStruct *waddr = NULL;
-	unsigned long flags = 0L;
+	struct WriteAddrStruct *pWriteAddr = NULL;
+	unsigned long flagsWriteAddr = 0L;
+	phys_addr_t start = memblock_start_of_DRAM();
 	bool ret = false;
 
-	spin_lock_irqsave(&gCmdqWriteAddrLock, flags);
-	list_for_each_entry(waddr, &gCmdqContext.writeAddrList, list_node)
-		if (pa - (unsigned long)waddr->pa < waddr->count << 2) {
+	spin_lock_irqsave(&gCmdqWriteAddrLock, flagsWriteAddr);
+	list_for_each_entry(pWriteAddr, &gCmdqContext.writeAddrList, list_node)
+		if (pa < start || pa - (unsigned long)pWriteAddr->pa <
+			pWriteAddr->count << 2) {
 			ret = true;
 			break;
 		}
-	spin_unlock_irqrestore(&gCmdqWriteAddrLock, flags);
+	spin_unlock_irqrestore(&gCmdqWriteAddrLock, flagsWriteAddr);
 	return ret;
 }
 
-static bool cmdq_core_check_addr_valid(const unsigned long pa, bool *dma)
+static bool cmdq_core_check_instr_valid(const uint64_t instr)
 {
-	static phys_addr_t start;
+	u32 op = instr >> 56, option = (instr >> 53) & 0x7;
+	u32 argA = (instr >> 32) & 0x1FFFFF, argB = instr & 0xFFFFFFFF;
 
-	if (!start)
-		start = memblock_start_of_DRAM();
-
-	if (pa < start) {
-		*dma = false;
-		return cmdq_mdp_is_reg_valid((u32)pa);
-	}
-
-	*dma = true;
-	return cmdq_core_check_dma_valid(pa);
-}
-
-static bool cmdq_core_check_move(const struct cmdq_check *check,
-	enum xpr_rt_state *xpr)
-{
-	bool dma;
-
-	if (((u32 *)check)[1] == 0x2000000)
-		return true;
-
-	if (unlikely(check->opt != 0x4))
-		return false;
-
-	if (unlikely(!cmdq_core_check_addr_valid(check->val, &dma)))
-		return false;
-
-	if (unlikely(xpr[check->sop] == XPR_UNLOCK))
-		return false;
-	xpr[check->sop] = dma ? XPR_DMA : XPR_REG;
-	return true;
-}
-
-#ifdef CMDQ_MDP_ENABLE_SPR
-static bool cmdq_core_check_logic(const struct cmdq_check *check,
-	enum xpr_rt_state *xpr, u32 *spr)
-{
-	if (unlikely(check->opt != 0x4 || check->ai || check->sop ||
-		check->bi))
-		return false;
-	*spr = check->val;
-	xpr[xpr_spr0] = XPR_UNKNOWN;
-	return true;
-}
-
-static bool cmdq_core_check_write_s(const struct cmdq_check *check,
-	enum xpr_rt_state *xpr, u32 *spr)
-{
-	u8 base_type = check->ai & 0x2;
-	bool dma;
-
-	switch (check->opt) {
-	case 0:
+	switch (op) {
+	case CMDQ_CODE_WRITE:
+		if (!option)
+			return true;
+		if (option == 0x4 && cmdq_core_check_gpr_valid(argA, false))
+			return true;
+	case CMDQ_CODE_READ:
+		if (option == 0x2 && cmdq_core_check_gpr_valid(argB, true))
+			return true;
+		if (option == 0x6 && cmdq_core_check_gpr_valid(argA, false) &&
+			cmdq_core_check_gpr_valid(argB, true))
+			return true;
 		break;
-	case 0x2:
-		if (unlikely(!base_type || check->bi != 1))
-			return false;
+	case CMDQ_CODE_MOVE:
+		if (!option && !argA)
+			return true;
+		if (option == 0x4 && cmdq_core_check_gpr_valid(argA, false) &&
+			cmdq_core_check_dma_addr_valid(argB))
+			return true;
 		break;
-	default:
-		return false;
-	}
-
-	if (base_type) { /* base + offset case */
-		if (unlikely(check->sop)) /* must spr0 */
-			return false;
-		if (unlikely(xpr[check->sop] != XPR_UNKNOWN)) /* must assigned */
-			return false;
-		return cmdq_core_check_addr_valid(
-			(*spr << 16) | (check->ai & ~0x3), &dma);
-	}
-	return cmdq_mdp_is_sub_valid(check->sop, check->ai);
-}
-
-static bool cmdq_core_check_read_s(const struct cmdq_check *check,
-	enum xpr_rt_state *xpr, u32 *spr)
-{
-	if (unlikely(check->opt != 0x4 || check->ai != 1))
-		return false;
-
-	if (check->bi & 0x2) {
-		if (unlikely(check->sop)) /* must spr0 */
-			return false;
-		if (unlikely(xpr[check->sop] != XPR_UNKNOWN)) /* must assigned */
-			return false;
-		return cmdq_mdp_is_reg_valid(
-			(*spr << 16) | (check->bi & ~0x3));
-	}
-
-	return cmdq_mdp_is_sub_valid(check->sop, check->bi);
-}
-
-#endif
-
-static bool cmdq_core_valid_gpr_token(u16 event, bool lock,
-	enum xpr_rt_state *xpr)
-{
-	static u16 gpr_idx_r[] = {
-		xpr_r0,
-		xpr_r5,
-		xpr_r10,
-		xpr_r4,
-		xpr_r11,
-	};
-
-	static u16 gpr_idx_p[] = {
-		xpr_p1,
-		xpr_p4,
-		xpr_p6,
-		xpr_p3,
-		xpr_p7,
-	};
-
-	u16 idx = event - CMDQ_SYNC_TOKEN_GPR_SET_0;
-
-	if (idx >= ARRAY_SIZE(gpr_idx_r))
-		return true;
-
-	if (lock) {
-		if (unlikely(xpr[gpr_idx_r[idx]] != XPR_UNLOCK ||
-			xpr[gpr_idx_p[idx]] != XPR_UNLOCK))
-			return false;
-		xpr[gpr_idx_r[idx]] = XPR_UNKNOWN;
-		xpr[gpr_idx_p[idx]] = XPR_UNKNOWN;
-	} else {
-		if (unlikely(xpr[gpr_idx_r[idx]] == XPR_UNLOCK ||
-			xpr[gpr_idx_p[idx]] == XPR_UNLOCK))
-			return false;
-		xpr[gpr_idx_r[idx]] = XPR_UNLOCK;
-		xpr[gpr_idx_p[idx]] = XPR_UNLOCK;
-	}
-
-	return true;
-}
-
-static bool cmdq_core_check_event(const struct cmdq_check *check,
-	enum xpr_rt_state *xpr)
-{
-	u64 pattern = *(u64 *)check & 0xfffffc00ffffffff;
-
-	switch (pattern) {
-	case 0x2000000080008001: /* wait and clear event */
-		return cmdq_core_valid_gpr_token(check->ai, true, xpr);
-	case 0x2000000080010000: /* set */
-		return cmdq_core_valid_gpr_token(check->ai, false, xpr);
-	case 0x2000000080018000: /* acquire */
-	case 0x2000000080000000: /* clear event */
-	case 0x2000000000008001: /* wait no clear */
-		if (unlikely(check->ai == CMDQ_SYNC_TOKEN_GPR_SET_0 ||
-			check->ai == CMDQ_SYNC_TOKEN_GPR_SET_1 ||
-			check->ai == CMDQ_SYNC_TOKEN_GPR_SET_2 ||
-			check->ai == CMDQ_SYNC_TOKEN_GPR_SET_3 ||
-			check->ai == CMDQ_SYNC_TOKEN_GPR_SET_4))
-			return false;
+	case CMDQ_CODE_JUMP:
+		if (!argA && argB == 0x8)
+			return true;
 		break;
-	default:
-		return false;
-	}
-
-	return true;
-}
-
-static bool cmdq_core_check_write(const struct cmdq_check *check,
-	enum xpr_rt_state *xpr)
-{
-	switch (check->opt) {
-	case 0:
-		return cmdq_mdp_is_sub_valid(check->sop, check->ai);
-	case 0x2:
-		return check->val < xpr_total &&
-			xpr[check->val] != XPR_UNLOCK &&
-			cmdq_mdp_is_sub_valid(check->sop, check->ai);
-	case 0x4:
-		if (unlikely(xpr[check->sop] != XPR_DMA &&
-			xpr[check->sop] != XPR_REG))
-			return false;
-		break;
-	case 0x6:
-		if (unlikely((xpr[check->sop] != XPR_DMA &&
-			xpr[check->sop] != XPR_REG) ||
-			check->val >= xpr_total ||
-			xpr[check->val] != XPR_UNKNOWN)) {
-			return false;
-		}
-		break;
-	default:
-		return false;
-	}
-
-	return true;
-}
-
-static bool cmdq_core_check_read(const struct cmdq_check *check,
-	enum xpr_rt_state *xpr)
-{
-	switch (check->opt) {
-	case 0x2:
-		if (unlikely(check->val >= xpr_total ||
-			xpr[check->val] == XPR_UNLOCK) ||
-			!cmdq_mdp_is_sub_valid(check->sop, check->ai))
-			return false;
-		break;
-	case 0x6:
-		if (unlikely(check->sop >= xpr_total ||
-			check->val >= xpr_total ||
-			xpr[check->sop] != XPR_REG ||
-			xpr[check->val] == XPR_UNLOCK))
-			return false;
-		break;
-	default:
-		return false;
-	}
-
-	/* state to unknown */
-	xpr[check->val] = XPR_UNKNOWN;
-	return true;
-}
-
-static bool cmdq_core_check_instr_valid(const u64 instr,
-	enum xpr_rt_state *gpr, enum xpr_rt_state *spr, u32 *spr_val)
-{
-	const struct cmdq_check *check = (void *)&instr;
-
-	switch (check->op) {
-	case CMDQ_CODE_WFE:
-		return cmdq_core_check_event(check, gpr);
-#ifdef CMDQ_MDP_ENABLE_SPR
+	case CMDQ_CODE_READ_S:
 	case CMDQ_CODE_WRITE_S:
 	case CMDQ_CODE_WRITE_S_W_MASK:
-		return cmdq_core_check_write_s(check, spr, spr_val);
 	case CMDQ_CODE_LOGIC:
-		return cmdq_core_check_logic(check, spr, spr_val);
-	case CMDQ_CODE_READ_S:
-		return cmdq_core_check_read_s(check, spr, spr_val);
-#endif
-	case CMDQ_CODE_WRITE:
-		return cmdq_core_check_write(check, gpr);
-	case CMDQ_CODE_READ:
-		return cmdq_core_check_read(check, gpr);
-	case CMDQ_CODE_MOVE:
-		return cmdq_core_check_move(check, gpr);
-	case CMDQ_CODE_JUMP:
-#ifdef CMDQ_MDP_ENABLE_SPR
-		return instr == 0x1000000000000001;
-#else
-		return instr == 0x1000000000000008;
-#endif
-	case CMDQ_CODE_EOC:
-	case CMDQ_CODE_POLL:
-		return true;
-
+	case CMDQ_CODE_JUMP_C_ABSOLUTE:
+	case CMDQ_CODE_JUMP_C_RELATIVE:
+		break;
 	default:
-		return false;
+		return true;
 	}
+	return false;
 }
 
-static bool cmdq_core_check_user_valid(void *src, u32 size,
-	struct TaskStruct *pTask)
+static bool cmdq_core_check_user_valid(void *src, u32 size)
 {
-	enum xpr_rt_state gpr[xpr_total] = {0};
-	enum xpr_rt_state spr[xpr_total] = {0};
-	u32 spr0 = 0;
 	void *buffer;
 	u64 *va;
 	bool ret = true;
@@ -3895,18 +3603,13 @@ static bool cmdq_core_check_user_valid(void *src, u32 size,
 
 		for (va = (u64 *)buffer;
 			va < (u64 *)(buffer + copy_size); va++) {
-			ret = cmdq_core_check_instr_valid(*va, gpr, spr, &spr0);
-			if (unlikely(!ret)) {
-				CMDQ_ERR("instr:%#llx\n", *va);
+			ret = cmdq_core_check_instr_valid(*va);
+			if (unlikely(!ret))
 				break;
-			}
 		}
 
 		remain_size -= copy_size;
 		cur_src += copy_size;
-
-		cmdq_core_copy_cmd_to_task_impl(
-			pTask, buffer, copy_size, false);
 	}
 
 	mutex_unlock(&cmdq_inst_check_mutex);
@@ -3954,15 +3657,14 @@ static int32_t cmdq_core_insert_read_reg_command(struct TaskStruct *pTask,
 	else
 		copyCmdSize = pCommandDesc->blockSize;
 
-	if (userSpaceRequest) {
-		if (!cmdq_core_check_user_valid(copyCmdSrc, copyCmdSize, pTask))
-			return -EFAULT;
-	} else {
-		status = cmdq_core_copy_cmd_to_task_impl(pTask, copyCmdSrc, copyCmdSize,
-							 userSpaceRequest);
-		if (status < 0)
-			return status;
-	}
+	if (userSpaceRequest && !cmdq_core_check_user_valid(copyCmdSrc,
+		pCommandDesc->blockSize))
+		return -EFAULT;
+
+	status = cmdq_core_copy_cmd_to_task_impl(pTask, copyCmdSrc,
+		copyCmdSize, userSpaceRequest);
+	if (status < 0)
+		return status;
 
 	/* make sure instructions are really in DRAM */
 	smp_mb();
@@ -4160,12 +3862,9 @@ static struct TaskStruct *cmdq_core_acquire_task(
 		if (pCommandDesc->prop_size && pCommandDesc->prop_addr &&
 			pCommandDesc->prop_size < CMDQ_MAX_USER_PROP_SIZE) {
 			pTask->prop_addr = kzalloc(pCommandDesc->prop_size, GFP_KERNEL);
-
-			memcpy(pTask->prop_addr,
-				(void *)CMDQ_U32_PTR(pCommandDesc->prop_addr),
+			memcpy(pTask->prop_addr, (void *)CMDQ_U32_PTR(pCommandDesc->prop_addr),
 				pCommandDesc->prop_size);
 			pTask->prop_size = pCommandDesc->prop_size;
-
 		} else {
 			pTask->prop_addr = NULL;
 			pTask->prop_size = 0;

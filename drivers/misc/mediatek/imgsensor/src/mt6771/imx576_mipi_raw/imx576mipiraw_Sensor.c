@@ -71,7 +71,7 @@ static struct imgsensor_info_struct imgsensor_info = {
 
 	.module_id = 0x01,  /* 0x01 Sunny,0x05 QTEK */
 
-	.checksum_value = 0x77de2ddb,
+	.checksum_value = 0x4cb91a94,
 
 	.pre = {
 		#if NO_USE_3HDR
@@ -200,7 +200,7 @@ static struct imgsensor_info_struct imgsensor_info = {
 	/* 0,MIPI_OPHY_NCSI2;  1,MIPI_OPHY_CSI2 */
 	.mipi_settle_delay_mode = 0,
 	/* 0,MIPI_SETTLEDELAY_AUTO; 1,MIPI_SETTLEDELAY_MANNUAL */
-	.sensor_output_dataformat = SENSOR_OUTPUT_FORMAT_RAW_4CELL_HW_BAYER_B,
+	.sensor_output_dataformat = SENSOR_OUTPUT_FORMAT_RAW_R,
 	.mclk = 24,
 	.mipi_lane_num = SENSOR_MIPI_4_LANE,
 	.i2c_addr_table = {0x20, 0x21, 0xff},
@@ -209,7 +209,7 @@ static struct imgsensor_info_struct imgsensor_info = {
 
 
 static struct imgsensor_struct imgsensor = {
-	.mirror = IMAGE_HV_MIRROR, /* mirrorflip information */
+	.mirror = IMAGE_NORMAL, /* mirrorflip information */
 	/* IMGSENSOR_MODE enum value,record current sensor mode,such as:
 	 *  INIT, Preview, Capture, Video,High Speed Video, Slim Video
 	 */
@@ -2458,11 +2458,11 @@ static kal_uint32 set_test_pattern_mode(kal_bool enable)
 	if (enable) {
 	/* 0x5E00[8]: 1 enable,  0 disable */
 	/* 0x5E00[1:0]; 00 Color bar, 01 Random Data, 10 Square, 11 BLACK */
-		write_cmos_sensor(0x0601, 0x0002);
+		write_cmos_sensor_8(0x0601, 0x0002);
 	} else {
 	/* 0x5E00[8]: 1 enable,  0 disable */
 	/* 0x5E00[1:0]; 00 Color bar, 01 Random Data, 10 Square, 11 BLACK */
-		write_cmos_sensor(0x0601, 0x0000);
+		write_cmos_sensor_8(0x0601, 0x0000);
 	}
 	spin_lock(&imgsensor_drv_lock);
 	imgsensor.test_pattern = enable;
@@ -2527,20 +2527,20 @@ static void hdr_write_tri_shutter(kal_uint16 le, kal_uint16 me, kal_uint16 se)
 
 }
 
-static void hdr_write_tri_gain(kal_uint16 lgain, kal_uint16 mg, kal_uint16 sg)
+static void hdr_write_tri_gain(kal_uint16 lg, kal_uint16 mg, kal_uint16 sg)
 {
 	kal_uint16 reg_lg, reg_mg, reg_sg;
 
-	if (lgain < BASEGAIN || lgain > 16 * BASEGAIN) {
+	if (lg < BASEGAIN || lg > 16 * BASEGAIN) {
 		LOG_INF("Error gain setting");
 
-		if (lgain < BASEGAIN)
-			lgain = BASEGAIN;
-		else if (lgain > 16 * BASEGAIN)
-			lgain = 16 * BASEGAIN;
+		if (lg < BASEGAIN)
+			lg = BASEGAIN;
+		else if (lg > 16 * BASEGAIN)
+			lg = 16 * BASEGAIN;
 	}
 
-	reg_lg = gain2reg(lgain);
+	reg_lg = gain2reg(lg);
 	reg_mg = gain2reg(mg);
 	reg_sg = gain2reg(sg);
 	spin_lock(&imgsensor_drv_lock);
@@ -2557,7 +2557,7 @@ static void hdr_write_tri_gain(kal_uint16 lgain, kal_uint16 mg, kal_uint16 sg)
 	write_cmos_sensor_8(0x0216, (reg_sg>>8) & 0xFF);
 	write_cmos_sensor_8(0x0217, reg_sg & 0xFF);
 
-	if (lgain > mg) {
+	if (lg > mg) {
 		LOG_INF("long gain > medium gain\n");
 		write_cmos_sensor_8(0xEB06, 0x00);
 		write_cmos_sensor_8(0xEB08, 0x00);
@@ -2591,8 +2591,8 @@ static void hdr_write_tri_gain(kal_uint16 lgain, kal_uint16 mg, kal_uint16 sg)
 	write_cmos_sensor_8(0x0104, 0x00);
 
 	LOG_INF(
-		"lgain:0x%x, reg_lg:0x%x, sg:0x%x, reg_mg:0x%x, mg:0x%x, reg_sg:0x%x\n",
-		lgain, reg_lg, mg, reg_mg, sg, reg_sg);
+		"lg:0x%x, reg_lg:0x%x, sg:0x%x, reg_mg:0x%x, mg:0x%x, reg_sg:0x%x\n",
+		lg, reg_lg, mg, reg_mg, sg, reg_sg);
 
 }
 

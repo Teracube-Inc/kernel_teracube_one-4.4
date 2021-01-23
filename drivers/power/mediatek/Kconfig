@@ -10,7 +10,12 @@ config LOAD_SWITCH_RT9750
 	  RT9750 is a load switch from Richtek.
 	  This driver supports
 	  load switch for direct charge.
-
+config WPC_SY65153
+	bool "Charger Driver for sy65153 Charger IC"
+	default n
+	help
+	  Say Y to enable
+	  sy65153 driver.
 config CHARGER_RT9466
 	bool "Charger Driver for Richtek RT9466 Charger IC"
 	default n
@@ -48,17 +53,6 @@ config CHARGER_RT9458
 	help
 	  Say Y to enable
 	  Richtek RT9458 driver.
-	  It depends on config MTK_SMART_BATTERY
-	  and config MTK_SWCHR_SUPPORT.
-
-config CHARGER_RT9471
-	bool "Charger Driver for Richtek RT9471 Charger IC"
-	default n
-	depends on MTK_SMART_BATTERY && MTK_SWCHR_SUPPORT
-	help
-	  Say Yes to enable Richtek RT9471 driver.
-	  It supports RT9470/RT9470D/RT9471/RT9471D,
-	  which RT9470D and RT9471D support BC1.2
 	  It depends on config MTK_SMART_BATTERY
 	  and config MTK_SWCHR_SUPPORT.
 
@@ -136,6 +130,24 @@ config MTK_BQ24296_SUPPORT
 	  It depends on config MTK_SMART_BATTERY
 	  and config MTK_SWCHR_SUPPORT
 	  Set to Yes if BQ24296 is used.
+
+config MTK_BQ24158_SUPPORT
+	bool "MediaTek Battery driver for TI BQ24158 charger IC"
+	default n
+	help
+	  This is to enable MediaTek supports to BQ24158 Charger IC.
+	  It depends on config MTK_SMART_BATTERY
+	  and config MTK_SWCHR_SUPPORT
+	  Set to Yes if BQ24158 is used.
+
+config MTK_BQ2560X_SUPPORT
+	bool "MediaTek Battery driver for TI BQ2560X charger IC"
+	default n
+	help
+	  This is to enable MediaTek supports to BQ2560X Charger IC.
+	  It depends on config MTK_SMART_BATTERY
+	  and config MTK_SWCHR_SUPPORT
+	  Set to Yes if BQ2560X is used.
 
 config MTK_NCP1854_SUPPORT
 	bool "Mediatek Battery driver support NCP1854 charger IC"

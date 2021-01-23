@@ -162,7 +162,6 @@ imgsensor_sensor_open(struct IMGSENSOR_SENSOR *psensor)
 #ifdef CONFIG_MTK_CCU
 	struct ccu_sensor_info ccuSensorInfo;
 	enum IMGSENSOR_SENSOR_IDX sensor_idx = psensor->inst.sensor_idx;
-	struct i2c_client *pi2c_client = NULL;
 #endif
 
 	IMGSENSOR_FUNCTION_ENTRY();
@@ -201,13 +200,6 @@ imgsensor_sensor_open(struct IMGSENSOR_SENSOR *psensor)
 #ifdef CONFIG_MTK_CCU
 			ccuSensorInfo.slave_addr = (psensor_inst->i2c_cfg.pinst->msg->addr << 1);
 			ccuSensorInfo.sensor_name_string = (char *)(psensor_inst->psensor_name);
-			pi2c_client = psensor_inst->i2c_cfg.pinst->pi2c_client;
-			if (pi2c_client)
-				ccuSensorInfo.i2c_id =
-					(((struct mt_i2c *) i2c_get_adapdata(
-						pi2c_client->adapter))->id);
-			else
-				ccuSensorInfo.i2c_id = -1;
 			ccu_set_sensor_info(sensor_idx, &ccuSensorInfo);
 #endif
 		}
@@ -423,6 +415,25 @@ inline static int imgsensor_check_is_alive(struct IMGSENSOR_SENSOR *psensor)
 	{
 		PK_DBG("ERROR:imgsensor_check_is_alive(), No imgsensor alive\n");
 	}
+
+/* Stoneoim:maxiaojun on: Mon, 26 Aug 2013 17:04:18 +0800
+ * board device name support.
+ */
+#ifdef VANZO_DEVICE_NAME_SUPPORT
+    {
+        extern void v_set_dev_name(int id, char *name);
+        if (ERROR_NONE == err) {
+            if (IMGSENSOR_SENSOR_IDX_MAIN == psensor_inst->sensor_idx) {
+                v_set_dev_name(3, (char *)psensor_inst->psensor_name);
+            } else if (IMGSENSOR_SENSOR_IDX_SUB == psensor_inst->sensor_idx) {
+                v_set_dev_name(5, (char *)psensor_inst->psensor_name);
+            } else if (IMGSENSOR_SENSOR_IDX_MAIN2 == psensor_inst->sensor_idx) {
+                v_set_dev_name(4, (char *)psensor_inst->psensor_name);
+            }
+        }
+    }
+#endif
+// End of Stoneoim:maxiaojun
 
 	imgsensor_hw_power(&pgimgsensor->hw, psensor, psensor_inst->psensor_name, IMGSENSOR_HW_POWER_STATUS_OFF);
 
@@ -2200,6 +2211,28 @@ static struct platform_driver gimgsensor_platform_driver = {
 /*=======================================================================
   * imgsensor_init()
   *=======================================================================*/
+#if defined (CONFIG_FAKE_DUAL_CAMERA)
+static ssize_t show_BV_value(struct device_driver *ddri, char *buf)
+{
+    MUINT32 sensorID = 0;
+
+    MUINT32 retLen = 0;
+    struct IMGSENSOR_SENSOR      *psensor = imgsensor_sensor_get_inst(IMGSENSOR_SENSOR_IDX_MAP(DUAL_CAMERA_MAIN_SENSOR));
+    imgsensor_sensor_feature_control(psensor, SENSOR_FEATURE_GET_YUV_SENSOR_BV, (MUINT8 *)&sensorID, &retLen);
+  return snprintf(buf, PAGE_SIZE, "%d\n", sensorID);
+}
+
+static ssize_t store_BV_value(struct device_driver *ddri, const char *buf, size_t count)
+{
+  return 0;
+}
+
+static DRIVER_ATTR(bv_val,   S_IWUSR | S_IRUGO, show_BV_value, store_BV_value);
+
+static struct driver_attribute *cam_bv_val[] = {
+  &driver_attr_bv_val,   
+};
+#endif
 static int __init imgsensor_init(void)
 {
 	PK_DBG("[camerahw_probe] start\n");
@@ -2208,7 +2241,11 @@ static int __init imgsensor_init(void)
 		PK_PR_ERR("failed to register CAMERA_HW driver\n");
 		return -ENODEV;
 	}
-
+#if  defined(CONFIG_FAKE_DUAL_CAMERA)
+    if(driver_create_file(&gimgsensor_platform_driver.driver, cam_bv_val[0])){
+		PK_PR_ERR("create bv_val failed!!\n");
+    }
+#endif
 #ifdef CONFIG_CAM_TEMPERATURE_WORKQUEUE
 	memset((void *)&cam_temperature_wq, 0, sizeof(cam_temperature_wq));
 	INIT_DELAYED_WORK(&cam_temperature_wq, cam_temperature_report_wq_routine);

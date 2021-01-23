@@ -68,8 +68,33 @@ $(foreach drv,$(subst $\",,$(CONFIG_CUSTOM_KERNEL_IMGSENSOR)),$(eval $(call FILT
 custom_kernel_imgsensor_by_platform := $(addsuffix /, $(shell echo $(platform_drv)))
 custom_kernel_imgsensor_by_project := $(addsuffix /, $(shell echo $(project_drv)))
 
-obj-y += $(custom_kernel_imgsensor_by_platform)
-obj-y += $(custom_kernel_imgsensor_by_project)
+# Stoneoim:wangfei on: Wed, 12 Nov 2014 21:06:42 +0800
+# for compatible the old style ,so use CUSTOM_KERNEL_IMGSENSOR
+custom_kernel_imgsensor := $(addsuffix /, $(shell echo $(CUSTOM_KERNEL_IMGSENSOR)))
 
+ifeq ($(custom_kernel_imgsensor),)
+# End of Stoneoim:wangfei
+    $(foreach drv,$(subst $\",,$(CONFIG_CUSTOM_KERNEL_IMGSENSOR)),$(eval $(call FILTER_PROJECT_DRV,$(drv))))
+    custom_kernel_imgsensor := $(addsuffix /, $(shell echo $(platform_drv)))
+# Stoneoim:wangfei on: Thu, 13 Nov 2014 16:15:59 +0800
+# added for project config prio the defconfig
+endif
+# End of Stoneoim:wangfei
+# Stoneoim:yucheng on: Sat, 16 Jan 2016 17:58:29 +0800
+# Modified for camera customization
+#obj-y += $(custom_kernel_imgsensor_by_platform)
+#obj-y += $(custom_kernel_imgsensor_by_project)
+
+obj-y += $(custom_kernel_imgsensor)
+# End of Stoneoim: yucheng
 $(info imgsensor drv by platform $(platform_drv))
 $(info imgsensor drv by project $(project_drv))
+# Stoneoim:wuchuanrong on: Fri, 26 Jan 2018 21:44:23 +0800
+# TODO: design for fake dual camera
+ifeq ($(strip $(VANZO_FEATURE_FAKE_DUAL_CAMERA_BY_NAME)),yes)
+ifneq ($(strip $(CUSTOM_FAKE_CAMERA)),)
+    subdir-ccflags-y                += -I$(srctree)/drivers/misc/mediatek/imgsensor/src/mt6763/fake_camera/inc
+    obj-y                           += fake_camera/
+endif
+endif
+# End of Stoneoim: wuchuanrong

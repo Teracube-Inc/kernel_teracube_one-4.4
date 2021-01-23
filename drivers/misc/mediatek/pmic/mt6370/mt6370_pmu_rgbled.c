@@ -135,7 +135,7 @@ static void mt6370_pmu_led_bright_set(struct led_classdev *led_cdev,
 		reg_addr = MT6370_PMU_REG_RGBCHRINDCTRL;
 		reg_mask = 0x3;
 		en_mask = 0x10;
-		need_enable_timer = false;
+		//need_enable_timer = false;
 		break;
 	default:
 		dev_err(led_cdev->dev, "invalid mt led index\n");
@@ -288,7 +288,10 @@ static int mt6370_pmu_led_blink_set(struct led_classdev *led_cdev,
 	int ret = 0;
 
 	if (!*delay_on && !*delay_off)
-		*delay_on = *delay_off = 500;
+    {
+      *delay_on = 1000;
+      *delay_off = 2000;
+    }
 	if (!*delay_off)
 		mode_sel = MT6370_PMU_LED_REGMODE;
 	if (mode_sel == MT6370_PMU_LED_PWMMODE) {
@@ -310,7 +313,7 @@ static int mt6370_pmu_led_blink_set(struct led_classdev *led_cdev,
 static struct mt6370_led_classdev mt6370_led_classdev[MT6370_PMU_MAXLED] = {
 	{
 		.led_dev =  {
-			.max_brightness = 6,
+			.max_brightness = 1,
 			.brightness_set = mt6370_pmu_led_bright_set,
 			.brightness_get = mt6370_pmu_led_bright_get,
 			.blink_set = mt6370_pmu_led_blink_set,
@@ -319,7 +322,7 @@ static struct mt6370_led_classdev mt6370_led_classdev[MT6370_PMU_MAXLED] = {
 	},
 	{
 		.led_dev =  {
-			.max_brightness = 6,
+			.max_brightness = 1,
 			.brightness_set = mt6370_pmu_led_bright_set,
 			.brightness_get = mt6370_pmu_led_bright_get,
 			.blink_set = mt6370_pmu_led_blink_set,
@@ -328,7 +331,7 @@ static struct mt6370_led_classdev mt6370_led_classdev[MT6370_PMU_MAXLED] = {
 	},
 	{
 		.led_dev =  {
-			.max_brightness = 6,
+			.max_brightness = 1,
 			.brightness_set = mt6370_pmu_led_bright_set,
 			.brightness_get = mt6370_pmu_led_bright_get,
 			.blink_set = mt6370_pmu_led_blink_set,
@@ -337,7 +340,7 @@ static struct mt6370_led_classdev mt6370_led_classdev[MT6370_PMU_MAXLED] = {
 	},
 	{
 		.led_dev =  {
-			.max_brightness = 3,
+			.max_brightness = 1,
 			.brightness_set = mt6370_pmu_led_bright_set,
 			.brightness_get = mt6370_pmu_led_bright_get,
 			.blink_set = mt6370_pmu_led_blink_set,
@@ -1171,7 +1174,7 @@ static void mt6370_led_enable_dwork_func(struct work_struct *work)
 {
 	struct mt6370_pmu_rgbled_data *rgbled_data =
 		container_of(work, struct mt6370_pmu_rgbled_data, dwork.work);
-	uint8_t reg_data = 0, reg_mask = 0xe0;
+	uint8_t reg_data = 0, reg_mask = 0xf0;
 	int ret = 0;
 
 	dev_dbg(rgbled_data->dev, "%s\n", __func__);
@@ -1184,6 +1187,9 @@ static void mt6370_led_enable_dwork_func(struct work_struct *work)
 	/* green */
 	if (mt6370_led_classdev[2].led_dev.brightness != 0)
 		reg_data |= 0x20;
+	/* red */
+	if (mt6370_led_classdev[3].led_dev.brightness != 0)
+		reg_data |= 0x10;
 	ret =  mt6370_pmu_reg_update_bits(rgbled_data->chip,
 					  MT6370_PMU_REG_RGBEN,
 					  reg_mask, reg_data);

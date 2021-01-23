@@ -47,21 +47,19 @@ int entropy_thread(void *arg)
 	uint8_t *ptr;
 
 	ptr = kmalloc(NDBG_REE_ENTROPY_SZ, GFP_KERNEL);
-	if (!ptr)
-		return TZ_RESULT_ERROR_OUT_OF_MEMORY;
 	memset(ptr, 0, NDBG_REE_ENTROPY_SZ);
 
 	while (!kthread_should_stop()) {
 		ret = KREE_CreateSession(TZ_TA_NDBG_UUID, &ndbg_session);
 		if (ret != TZ_RESULT_SUCCESS) {
 			pr_warn("CreateSession error %d\n", ret);
-			break;
+			return 1;
 		}
 
 		ret = KREE_CreateSession(TZ_TA_MEM_UUID, &mem_session);
 		if (ret != TZ_RESULT_SUCCESS) {
 			pr_warn("Create memory session error %d\n", ret);
-			break;
+			return 1;
 		}
 
 		shm_param.buffer = ptr;
@@ -71,7 +69,7 @@ int entropy_thread(void *arg)
 		if (ret != TZ_RESULT_SUCCESS) {
 			pr_warn("KREE_RegisterSharedmem Error: %s\n",
 				TZ_GetErrorString(ret));
-			break;
+			return 1;
 		}
 
 #if 0
@@ -117,7 +115,7 @@ int entropy_thread(void *arg)
 		if (ret != TZ_RESULT_SUCCESS) {
 			pr_warn("KREE_UnregisterSharedmem Error: %s\n",
 				TZ_GetErrorString(ret));
-			break;
+			return 1;
 		}
 
 		ret = KREE_CloseSession(ndbg_session);
@@ -132,7 +130,7 @@ int entropy_thread(void *arg)
 
 	kfree(ptr);
 
-	return ret;
+	return 0;
 }
 
 #ifdef CC_NDBG_TEST_PROGRAM

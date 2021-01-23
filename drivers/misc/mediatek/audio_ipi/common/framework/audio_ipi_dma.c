@@ -13,7 +13,6 @@
 
 #include <audio_ipi_dma.h>
 
-#include <linux/string.h>
 #include <linux/io.h>
 #include <linux/genalloc.h>
 
@@ -37,7 +36,7 @@
 #include <audio_messenger_ipi.h>
 
 #include <audio_ringbuf.h>
-#include <linux/wait.h>
+
 
 
 

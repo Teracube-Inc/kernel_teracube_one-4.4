@@ -618,6 +618,16 @@ pr_err("Lomen 1\n");
 				TPD_DMESG("[mtk-tpd]tpd_probe, tpd_driver_name=%s\n",
 					  tpd_driver_list[i].tpd_device_name);
 				g_tpd_drv = &tpd_driver_list[i];
+/* Stoneoim:zhangqingzhan on: Tue, 01 Nov 2016 18:38:34 +0800
+ *for tpd info
+ */
+#ifdef VANZO_DEVICE_NAME_SUPPORT
+                {
+                    extern void v_set_dev_name(int id, char *name);
+                    v_set_dev_name(2, tpd_driver_list[i].tpd_device_name);
+                }
+#endif
+// End of Stoneoim: zhangqingzhan
 				break;
 			}
 		}

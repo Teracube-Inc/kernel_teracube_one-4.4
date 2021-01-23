@@ -1619,10 +1619,7 @@ static int isr_common_handler(int core)
 	struct vpu_log_reader_t *vpu_log_reader;
 	void *ptr;
 
-	LOG_INF("vpu %d irq(0x%08x), INFO00(0x%08x), DEBUGPC(0x%08x)\n", core,
-		vpu_read_field(core, FLD_XTENSA_INFO17),
-		vpu_read_field(core, FLD_XTENSA_INFO00),
-		vpu_read_field(core, FLD_P_DEBUG_PC));
+	LOG_DBG("vpu %d received a interrupt\n", core);
 
 	/* INFO 17 was used to reply command done */
 	req_cmd = vpu_read_field(core, FLD_XTENSA_INFO17);

@@ -1423,18 +1423,24 @@ static void lcm_get_params(LCM_PARAMS *params)
 
 static void lcm_init_power(void)
 {
+#ifndef BUILD_LK
 	display_bias_enable();
+#endif
 }
 
 static void lcm_suspend_power(void)
 {
+#ifndef BUILD_LK
 	display_bias_disable();
+#endif
 }
 
 static void lcm_resume_power(void)
 {
+#ifndef BUILD_LK
 	SET_RESET_PIN(0);
 	display_bias_enable();
+#endif
 }
 
 static void lcm_init(void)

@@ -90,41 +90,86 @@ static struct stAF_OisPosInfo OisPosInfo;
 /* ------------------------- */
 
 static struct stAF_DrvList g_stAF_DrvList[MAX_NUM_OF_LENS] = {
+	#ifdef CONFIG_MTK_LENS_AK7371AF_SUPPORT
 	{1, AFDRV_AK7371AF, AK7371AF_SetI2Cclient, AK7371AF_Ioctl, AK7371AF_Release, NULL},
+    #endif
+    #ifdef CONFIG_MTK_LENS_BU6424AF_SUPPORT
 	{1, AFDRV_BU6424AF, BU6424AF_SetI2Cclient, BU6424AF_Ioctl, BU6424AF_Release, NULL},
+    #endif
+    #ifdef CONFIG_MTK_LENS_BU6429AF_SUPPORT
 	{1, AFDRV_BU6429AF, BU6429AF_SetI2Cclient, BU6429AF_Ioctl, BU6429AF_Release, NULL},
+	#endif
+    #ifdef CONFIG_MTK_LENS_BU64748AF_SUPPORT
 	{1, AFDRV_BU64748AF, bu64748af_SetI2Cclient_Main, bu64748af_Ioctl_Main, bu64748af_Release_Main, NULL},
-	{1,
-		#ifdef CONFIG_MTK_LENS_BU63165AF_SUPPORT
-		AFDRV_BU63165AF, BU63165AF_SetI2Cclient, BU63165AF_Ioctl, BU63165AF_Release, NULL
-		#else
-		AFDRV_BU63169AF, BU63169AF_SetI2Cclient, BU63169AF_Ioctl, BU63169AF_Release, NULL
-		#endif
-	},
+	#endif
+    #ifdef CONFIG_MTK_LENS_BU63165AF_SUPPORT
+	{1, AFDRV_BU63165AF, BU63165AF_SetI2Cclient, BU63165AF_Ioctl, BU63165AF_Release, NULL},
+    #endif
+    #ifdef CONFIG_MTK_LENS_BU63169AF_SUPPORT
+	{1,	AFDRV_BU63169AF, BU63169AF_SetI2Cclient, BU63169AF_Ioctl, BU63169AF_Release, NULL},
+    #endif
+    #ifdef CONFIG_MTK_LENS_DW9714AF_SUPPORT
 	{1, AFDRV_DW9714AF, DW9714AF_SetI2Cclient, DW9714AF_Ioctl, DW9714AF_Release, NULL},
+    #endif
+	#ifdef CONFIG_MTK_LENS_DW9714SAF_SUPPORT
+	{1, AFDRV_DW9714SAF, DW9714SAF_SetI2Cclient, DW9714SAF_Ioctl, DW9714SAF_Release, NULL},
+    #endif
+    #ifdef CONFIG_MTK_LENS_DW9718SAF_SUPPORT
 	{1, AFDRV_DW9718SAF, DW9718SAF_SetI2Cclient, DW9718SAF_Ioctl, DW9718SAF_Release, NULL},
+    #endif
+    #ifdef CONFIG_MTK_LENS_DW9719TAF_SUPPORT
 	{1, AFDRV_DW9719TAF, DW9719TAF_SetI2Cclient, DW9719TAF_Ioctl, DW9719TAF_Release, NULL},
+	#endif
+    #ifdef CONFIG_MTK_LENS_DW9767AF_SUPPORT
+	{1, AFDRV_DW9767AF, DW9767AF_SetI2Cclient, DW9767AF_Ioctl, DW9767AF_Release, NULL},
+    #endif
 	#ifdef CONFIG_MTK_LENS_DW9800WAF_SUPPORT
 		{1, AFDRV_DW9800WAF, DW9800WAF_SetI2Cclient, DW9800WAF_Ioctl, DW9800WAF_Release, NULL},
 	#endif
+    #ifdef CONFIG_MTK_LENS_LC898212XDAF_SUPPORT
 	{1, AFDRV_LC898212XDAF, LC898212XDAF_SetI2Cclient, LC898212XDAF_Ioctl, LC898212XDAF_Release, NULL},
+    #endif
+    #ifdef CONFIG_MTK_LENS_LC898212XD_TVC700_SUPPORT
 	{1, AFDRV_LC898212XDAF_TVC700, LC898212XD_TVC700_SetI2Cclient,
 		LC898212XD_TVC700_Ioctl, LC898212XD_TVC700_Release, NULL},
+     #endif
+    #ifdef CONFIG_MTK_LENS_FM50AF_SUPPORT
 	{1, AFDRV_FM50AF, FM50AF_SetI2Cclient, FM50AF_Ioctl, FM50AF_Release, NULL},
+    #endif
+    #ifdef CONFIG_MTK_LENS_DW9814AF_SUPPORT
 	{1, AFDRV_DW9814AF, DW9814AF_SetI2Cclient, DW9814AF_Ioctl, DW9814AF_Release, NULL},
+    #endif
+
+    #ifdef CONFIG_MTK_LENS_DW9718AF_SUPPORT
 	{1, AFDRV_DW9718AF, DW9718AF_SetI2Cclient, DW9718AF_Ioctl, DW9718AF_Release, NULL},
+    #endif
+
+    #ifdef CONFIG_MTK_LENS_LC898212AF_SUPPORT
 	{1, AFDRV_LC898212AF, LC898212AF_SetI2Cclient, LC898212AF_Ioctl, LC898212AF_Release, NULL},
+    #endif
+
+    #ifdef CONFIG_MTK_LENS_LC898214AF_SUPPORT
 	{1, AFDRV_LC898214AF, LC898214AF_SetI2Cclient, LC898214AF_Ioctl, LC898214AF_Release, NULL},
+    #endif
+    #ifdef CONFIG_MTK_LENS_LC898217AF_SUPPORT
 	{1, AFDRV_LC898217AF, LC898217AF_SetI2Cclient, LC898217AF_Ioctl, LC898217AF_Release, NULL},
 	{1, AFDRV_LC898217AFA, LC898217AFA_SetI2Cclient, LC898217AF_Ioctl, LC898217AF_Release, NULL},
 	{1, AFDRV_LC898217AFB, LC898217AFB_SetI2Cclient, LC898217AF_Ioctl, LC898217AF_Release, NULL},
 	{1, AFDRV_LC898217AFC, LC898217AFC_SetI2Cclient, LC898217AF_Ioctl, LC898217AF_Release, NULL},
+	#endif
+	#ifdef CONFIG_MTK_LENS_LC898122AF_SUPPORT
 	{1, AFDRV_LC898122AF, LC898122AF_SetI2Cclient, LC898122AF_Ioctl, LC898122AF_Release, NULL},
+	#endif
 	#ifdef CONFIG_MTK_LENS_OV5645AF_SUPPORT
 	{1, AFDRV_OV5645AF, OV5645AF_SetI2Cclient, OV5645AF_Ioctl, OV5645AF_Release, NULL},
 	#endif
+    #ifdef CONFIG_MTK_LENS_AD5820AF_SUPPORT
 	{1, AFDRV_AD5820AF, AD5820AF_SetI2Cclient, AD5820AF_Ioctl, AD5820AF_Release, NULL},
+    #endif
+
+    #ifdef CONFIG_MTK_LENS_WV511AAF_SUPPORT
 	{1, AFDRV_WV511AAF, WV511AAF_SetI2Cclient, WV511AAF_Ioctl, WV511AAF_Release, NULL},
+    #endif
 };
 
 static struct stAF_DrvList *g_pstAF_CurDrv;
@@ -160,7 +205,12 @@ void AFRegulatorCtrl(int Stage)
 				kd_node = lens_device->of_node;
 				lens_device->of_node = node;
 
-				if (strncmp(CONFIG_ARCH_MTK_PROJECT, "k71v1_64_bsp_fhdp", 17) == 0)
+/* Foeec:zhangqingzhan on: Tue, 14 Jan 2020 15:21:17 +0800
+ *for mt6771 af power
+                if (strncmp(CONFIG_ARCH_MTK_PROJECT, "k71v1_64_bsp_fhdp", 17) == 0)
+ */
+				if (strncmp(CONFIG_MTK_PLATFORM, "mt6771", 6) == 0)
+// End of Foeec: zhangqingzhan
 					regVCAMAF = regulator_get(lens_device, "vldo28");
 				else
 					regVCAMAF = regulator_get(lens_device, "vcamaf");
@@ -224,7 +274,7 @@ void AF_PowerDown(void)
 	if (g_pstAF_I2Cclient != NULL) {
 		LOG_INF("CONFIG_MTK_PLATFORM : %s\n", CONFIG_MTK_PLATFORM);
 
-		#if defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6771) || defined(CONFIG_MACH_MT6775)
+		#ifdef CONFIG_MTK_LENS_LC898217AF_SUPPORT
 		LC898217AF_SetI2Cclient(g_pstAF_I2Cclient, &g_AF_SpinLock, &g_s4AF_Opened);
 		LC898217AF_PowerDown();
 		#endif
@@ -238,10 +288,12 @@ void AF_PowerDown(void)
 		DW9800WAF_SetI2Cclient(g_pstAF_I2Cclient, &g_AF_SpinLock, &g_s4AF_Opened);
 		#endif
 
-		#ifdef CONFIG_MACH_MT6758
+		#ifdef CONFIG_MTK_LENS_AK7371AF_SUPPORT
 		AK7371AF_SetI2Cclient(g_pstAF_I2Cclient, &g_AF_SpinLock, &g_s4AF_Opened);
 		AK7371AF_PowerDown();
+        #endif
 
+		#ifdef CONFIG_MTK_LENS_BU63169AF_SUPPORT
 		BU63169AF_SetI2Cclient(g_pstAF_I2Cclient, &g_AF_SpinLock, &g_s4AF_Opened);
 		BU63169AF_PowerDown();
 		#endif

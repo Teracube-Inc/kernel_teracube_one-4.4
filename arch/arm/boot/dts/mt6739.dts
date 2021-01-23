@@ -1332,6 +1332,13 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 				<&topckgen CLK_TOP_SPI_SEL>,
 				<&infracfg_ao CLK_INFRA_SPI1>;
 		clock-names = "parent-clk", "sel-clk", "spi-clk";
+                spidev@0{
+                    compatible = "rohm,dh2228fv";
+                    #address-cells = <1>;
+                    #size-cells = <1>;
+                    reg = <0x0>;
+                    spi-max-frequency = <5000000>;
+                };
 	};
 
 	spi2: spi@11012000 {
@@ -1773,6 +1780,12 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 	flashlights_rt4505: flashlights_rt4505 {
 		compatible = "mediatek,flashlights_rt4505";
 	};
+	flashlights_gpio: flashlights_dummy_gpio {
+		compatible = "mediatek,flashlights_dummy_gpio";
+        };
+	sub_flashlights_dummy_gpio: sub_flashlights_dummy_gpio {
+		compatible = "mediatek,sub_flashlights_dummy_gpio";
+	};
 
 	mtkfb: mtkfb {
 		compatible = "mediatek,mtkfb";
@@ -1799,6 +1812,10 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 			"MMDVFS_CLK_TOP_MMPLL_CK", "mmdvfs_clk_top_vencpll_ck",
 			"mmdvfs_clk_top_syspll2_d2";
 	};
+
+ lcm_mode: lcm_mode {
+            compatible = "mediatek,lcm_mode";
+        };
 
 	smi_larb0: smi_larb0@14003000 {
 		compatible = "mediatek,smi_larb0";
@@ -2197,8 +2214,8 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 		enable_min_charge_temperature;
 		min_charge_temperature = <0>;
 		min_charge_temperature_plus_x_degree = <6>;
-		max_charge_temperature = <50>;
-		max_charge_temperature_minus_x_degree = <47>;
+		max_charge_temperature = <58>;
+		max_charge_temperature_minus_x_degree = <55>;
 
 		/* PE 2.0 */
 		pe20_ichg_level_threshold = <1000>;
@@ -2249,10 +2266,34 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 		clock-names = "conn";
 	};
 
-	goodix_fp: fingerprint {
-		compatible = "mediatek,goodix-fp";
-	};
+        goodix_fp: goodix_fp {
+                compatible = "mediatek,goodix-fp";
+        };
+		microarray_fp: microarray_fp {
+			compatible = "mediatek,microarray_fp";
+		};
+		betterlife_platform: betterlife_platform {
+			compatible = "betterlife,platform";
+		};
+        fpc_finger:fpc_finger {
+               compatible = "mediatek,fpc_finger";
+        };
+        sunwave_fp: sunwave_fp {
+               compatible = "mediatek,sunwave_fp";
+        };
+        fingerprint: fingerprint {
+                 compatible = "mediatek, fingerprint-eint";
+             };
+        fpsensor_finger:fpsensor_finger{
+            compatible = "mediatek,fingerprint";
+        };
+        halldriver: hall_driver {
+                compatible = "mediatek, hall_driver";
+            };   
 
+        hall: halleint {
+                compatible = "mediatek, HALL-eint";
+            };
 	gps {
 		compatible = "mediatek,gps";
 	};
@@ -2270,7 +2311,9 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 	gyro: gyro {
 		compatible = "mediatek,gyroscope";
 	};
-
+        smart_pa: smart_pa {
+              compatible = "mediatek,mtksmartpa";
+          };
 	mrdump_ext_rst: mrdump_ext_rst {
 		compatible = "mediatek, mrdump_ext_rst-eint";
 		source = "EINT";

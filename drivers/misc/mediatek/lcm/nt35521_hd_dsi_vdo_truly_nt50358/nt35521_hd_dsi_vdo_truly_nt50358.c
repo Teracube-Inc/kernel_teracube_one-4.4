@@ -547,7 +547,7 @@ static int TPS65132_write_byte(kal_uint8 addr, kal_uint8 value)
 	write_data[0] = addr;
 	write_data[1] = value;
 
-	TPS65132_i2c.id = I2C_I2C_LCD_BIAS_CHANNEL;	/* I2C2; */
+	TPS65132_i2c.id = 0; //I2C_I2C_LCD_BIAS_CHANNEL;	/* I2C2; */
 	/* Since i2c will left shift 1 bit, we need to set FAN5405 I2C address to >>1 */
 	TPS65132_i2c.addr = (TPS65132_SLAVE_ADDR_WRITE >> 1);
 	TPS65132_i2c.mode = ST_MODE;

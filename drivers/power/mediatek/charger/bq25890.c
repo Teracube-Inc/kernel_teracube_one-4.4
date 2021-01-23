@@ -2091,59 +2091,45 @@ static int bq25890_driver_probe(struct i2c_client *client, const struct i2c_devi
 unsigned char g_reg_value_bq25890;
 static ssize_t show_bq25890_access(struct device *dev, struct device_attribute *attr, char *buf)
 {
-	pr_info("[%s] 0x%x\n", __func__, g_reg_value_bq25890);
-	return sprintf(buf, "0x%x\n", g_reg_value_bq25890);
+	pr_info("[show_bq25890_access] 0x%x\n", g_reg_value_bq25890);
+	return sprintf(buf, "%u\n", g_reg_value_bq25890);
 }
 
 static ssize_t store_bq25890_access(struct device *dev, struct device_attribute *attr,
 				    const char *buf, size_t size)
 {
 	int ret = 0;
-	char *pvalue = NULL, *addr = NULL;
-	char temp_buf[32];
+	char *pvalue = NULL, *addr, *val;
 	unsigned int reg_value = 0;
 	unsigned int reg_address = 0;
 
-	strncpy(temp_buf, buf, sizeof(temp_buf) - 1);
-	temp_buf[sizeof(temp_buf) - 1] = '\0';
-	pvalue = temp_buf;
+	pr_info("[store_bq25890_access]\n");
 
-	if (size != 0) {
+	if (buf != NULL && size != 0) {
+		pr_info("[store_bq25890_access] buf is %s and size is %zu\n", buf,
+			    size);
+
+		pvalue = (char *)buf;
 		if (size > 3) {
 			addr = strsep(&pvalue, " ");
-			if (addr == NULL) {
-				pr_info("[%s] format error\n", __func__);
-				return -EINVAL;
-			}
-			ret = kstrtou32(addr, 16, &reg_address);
-			if (ret) {
-				pr_info("[%s] format error, ret = %d\n", __func__, ret);
-				return ret;
-			}
+			ret = kstrtou32(addr, 16, (unsigned int *)&reg_address);
+		} else
+			ret = kstrtou32(pvalue, 16, (unsigned int *)&reg_address);
 
-			if (pvalue == NULL) {
-				pr_info("[%s] format error\n", __func__);
-				return -EINVAL;
-			}
-			ret = kstrtou32(pvalue, 16, &reg_value);
-			if (ret) {
-				pr_info("[%s] format error, ret = %d\n", __func__, ret);
-				return ret;
-			}
-
-			pr_info("[%s] write bq25890 reg 0x%x with value 0x%x\n",
-				__func__, reg_address, reg_value);
+		if (size > 3) {
+			val = strsep(&pvalue, " ");
+			ret = kstrtou32(val, 16, (unsigned int *)&reg_value);
+			pr_info(
+				    "[store_bq25890_access] write bq25890 reg 0x%x with value 0x%x !\n",
+				    (unsigned int) reg_address, reg_value);
 			ret = bq25890_config_interface(reg_address, reg_value, 0xFF, 0x0);
 		} else {
-			ret = kstrtou32(pvalue, 16, &reg_address);
-			if (ret) {
-				pr_info("[%s] format error, ret = %d\n", __func__, ret);
-				return ret;
-			}
 			ret = bq25890_read_interface(reg_address, &g_reg_value_bq25890, 0xFF, 0x0);
-			pr_info("[%s] read bq25890 reg 0x%x with value 0x%x\n",
-				__func__, reg_address, g_reg_value_bq25890);
-			pr_info("[%s] Please use \"cat bq25890_access\" to get value\n", __func__);
+			pr_info(
+				    "[store_bq25890_access] read bq25890 reg 0x%x with value 0x%x !\n",
+				    (unsigned int) reg_address, g_reg_value_bq25890);
+			pr_info(
+				    "[store_bq25890_access] Please use \"cat bq25890_access\" to get value\n");
 		}
 	}
 	return size;

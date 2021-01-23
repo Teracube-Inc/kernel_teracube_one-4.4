@@ -32,8 +32,8 @@
 
 /* define device tree */
 /* TODO: modify temp device tree name */
-#ifndef DUMMY_GPIO_DTNAME
-#define DUMMY_GPIO_DTNAME "mediatek,flashlights_dummy_gpio"
+#ifndef DUMMY_DTNAME
+#define DUMMY_DTNAME "mediatek,flashlights_dummy_gpio"
 #endif
 
 /* TODO: define driver name */
@@ -41,21 +41,36 @@
 
 /* define registers */
 /* TODO: define register */
+static int g_duty = 0;
 
 /* define mutex and work queue */
 static DEFINE_MUTEX(dummy_mutex);
 static struct work_struct dummy_work;
 
-/* define pinctrl */
-/* TODO: define pinctrl */
-#define DUMMY_PINCTRL_PIN_XXX 0
-#define DUMMY_PINCTRL_PINSTATE_LOW 0
-#define DUMMY_PINCTRL_PINSTATE_HIGH 1
-#define DUMMY_PINCTRL_STATE_XXX_HIGH "xxx_high"
-#define DUMMY_PINCTRL_STATE_XXX_LOW  "xxx_low"
-static struct pinctrl *dummy_pinctrl;
-static struct pinctrl_state *dummy_xxx_high;
-static struct pinctrl_state *dummy_xxx_low;
+/* flashlight pinctrl enum */
+typedef enum {
+    FLASHLIGHT_PIN_HWEN,    /* GPIO pin HWEN */
+    FLASHLIGHT_PIN_TORCH,   /* GPIO pin TORCH */
+    FLASHLIGHT_PIN_FLASH,   /* GPIO pin FLASH */
+    SUB_FLASHLIGHT_PIN_FLASH    /* GPIO pin SUB_FLASH */
+}FLASHLIGHT_GPIO_PIN_ENUM; 
+typedef enum {
+    STATE_LOW,
+    STATE_HIGH
+} FLASHLIGHT_GPIO_STATE_ENUM;
+
+/* ============================== */
+/* Pinctrl */
+/* ============================== */
+static struct pinctrl *flashlight_pinctrl;
+static struct pinctrl_state *flashlight_hwen_high;
+static struct pinctrl_state *flashlight_hwen_low;
+static struct pinctrl_state *flashlight_torch_high;
+static struct pinctrl_state *flashlight_torch_low;
+static struct pinctrl_state *flashlight_flash_high;
+static struct pinctrl_state *flashlight_flash_low;
+static struct pinctrl_state *sub_flashlight_flash_high;
+static struct pinctrl_state *sub_flashlight_flash_low;
 
 /* define usage count */
 static int use_count;
@@ -74,58 +89,114 @@ static int dummy_pinctrl_init(struct platform_device *pdev)
 {
 	int ret = 0;
 
-	/* get pinctrl */
-	dummy_pinctrl = devm_pinctrl_get(&pdev->dev);
-	if (IS_ERR(dummy_pinctrl)) {
-		pr_err("Failed to get flashlight pinctrl.\n");
-		ret = PTR_ERR(dummy_pinctrl);
-		return ret;
-	}
+    flashlight_pinctrl = devm_pinctrl_get(&pdev->dev);
+    if (IS_ERR(flashlight_pinctrl)) {
+        pr_debug("Cannot find flashlight pinctrl!");
+        ret = PTR_ERR(flashlight_pinctrl);
+    }
+    /* Flashlight HWEN pin initialization */
+    flashlight_hwen_high = pinctrl_lookup_state(flashlight_pinctrl, "hwen_high");
+    if (IS_ERR(flashlight_hwen_high)) {
+        ret = PTR_ERR(flashlight_hwen_high);
+        pr_debug("%s : init err, flashlight_hwen_high\n", __func__);
+    }
 
-	/* TODO: Flashlight XXX pin initialization */
-	dummy_xxx_high = pinctrl_lookup_state(
-			dummy_pinctrl, DUMMY_PINCTRL_STATE_XXX_HIGH);
-	if (IS_ERR(dummy_xxx_high)) {
-		pr_err("Failed to init (%s)\n", DUMMY_PINCTRL_STATE_XXX_HIGH);
-		ret = PTR_ERR(dummy_xxx_high);
-	}
-	dummy_xxx_low = pinctrl_lookup_state(
-			dummy_pinctrl, DUMMY_PINCTRL_STATE_XXX_LOW);
-	if (IS_ERR(dummy_xxx_low)) {
-		pr_err("Failed to init (%s)\n", DUMMY_PINCTRL_STATE_XXX_LOW);
-		ret = PTR_ERR(dummy_xxx_low);
-	}
+    flashlight_hwen_low = pinctrl_lookup_state(flashlight_pinctrl, "hwen_low");
+    if (IS_ERR(flashlight_hwen_low)) {
+        ret = PTR_ERR(flashlight_hwen_low);
+        pr_debug("%s : init err, flashlight_hwen_low\n", __func__);
+    }
 
-	return ret;
+    /* Flashlight TORCH pin initialization */
+    flashlight_torch_high = pinctrl_lookup_state(flashlight_pinctrl, "torch_high");
+    if (IS_ERR(flashlight_torch_high)) {
+        ret = PTR_ERR(flashlight_torch_high);
+        pr_debug("%s : init err, flashlight_torch_high\n", __func__);
+    }
+
+    flashlight_torch_low = pinctrl_lookup_state(flashlight_pinctrl, "torch_low");
+    if (IS_ERR(flashlight_torch_low)) {
+        ret = PTR_ERR(flashlight_torch_low);
+        pr_debug("%s : init err, flashlight_torch_low\n", __func__);
+    }
+
+    /* Flashlight FLASH pin initialization */
+    flashlight_flash_high = pinctrl_lookup_state(flashlight_pinctrl, "flash_high");
+    if (IS_ERR(flashlight_flash_high)) {
+        ret = PTR_ERR(flashlight_flash_high);
+        pr_debug("%s : init err, flashlight_flash_high\n", __func__);
+    }
+    flashlight_flash_low = pinctrl_lookup_state(flashlight_pinctrl, "flash_low");
+    if (IS_ERR(flashlight_flash_low)) {
+        ret = PTR_ERR(flashlight_flash_low);
+        pr_debug("%s : init err, flashlight_flash_low\n", __func__);
+    }
+
+    /*Sub Flashlight FLASH pin initialization */
+    sub_flashlight_flash_high = pinctrl_lookup_state(flashlight_pinctrl, "sub_flash_high");
+    if (IS_ERR(sub_flashlight_flash_high)) {
+        ret = PTR_ERR(sub_flashlight_flash_high);
+        pr_debug("%s : init err, sub_flashlight_flash_high\n", __func__);
+    }
+
+    sub_flashlight_flash_low = pinctrl_lookup_state(flashlight_pinctrl, "sub_flash_low");
+    if (IS_ERR(sub_flashlight_flash_low)) {
+        ret = PTR_ERR(sub_flashlight_flash_low);
+        pr_debug("%s : init err, sub_flashlight_flash_low\n", __func__);
+    }
+
+    return 0;
+
 }
 
-static int dummy_pinctrl_set(int pin, int state)
+int flashlight_gpio_set(int pin , int state)
 {
-	int ret = 0;
+    int ret = 0;
 
-	if (IS_ERR(dummy_pinctrl)) {
-		pr_err("pinctrl is not available\n");
-		return -1;
-	}
+    if (IS_ERR(flashlight_pinctrl)) {
+        pr_debug("%s : set err, flashlight_pinctrl not available\n", __func__);
+        return -1;
+    }
 
-	switch (pin) {
-	case DUMMY_PINCTRL_PIN_XXX:
-		if (state == DUMMY_PINCTRL_PINSTATE_LOW &&
-				!IS_ERR(dummy_xxx_low))
-			pinctrl_select_state(dummy_pinctrl, dummy_xxx_low);
-		else if (state == DUMMY_PINCTRL_PINSTATE_HIGH &&
-				!IS_ERR(dummy_xxx_high))
-			pinctrl_select_state(dummy_pinctrl, dummy_xxx_high);
-		else
-			pr_err("set err, pin(%d) state(%d)\n", pin, state);
-		break;
-	default:
-		pr_err("set err, pin(%d) state(%d)\n", pin, state);
-		break;
-	}
-	pr_debug("pin(%d) state(%d)\n", pin, state);
-
-	return ret;
+    switch (pin) {
+    case FLASHLIGHT_PIN_HWEN:
+        if (state == STATE_LOW && !IS_ERR(flashlight_hwen_low))
+            pinctrl_select_state(flashlight_pinctrl, flashlight_hwen_low);
+        else if (state == STATE_HIGH && !IS_ERR(flashlight_hwen_high))
+            pinctrl_select_state(flashlight_pinctrl, flashlight_hwen_high);
+        else
+            pr_debug("%s : set err, pin(%d) state(%d)\n", __func__, pin, state);
+        break;
+    case FLASHLIGHT_PIN_TORCH:
+        if (state == STATE_LOW && !IS_ERR(flashlight_torch_low))
+            pinctrl_select_state(flashlight_pinctrl, flashlight_torch_low);
+        else if (state == STATE_HIGH && !IS_ERR(flashlight_torch_high))
+            pinctrl_select_state(flashlight_pinctrl, flashlight_torch_high);
+        else
+            pr_debug("%s : set err, pin(%d) state(%d)\n", __func__, pin, state);
+        break;
+    case FLASHLIGHT_PIN_FLASH:
+        if (state == STATE_LOW && !IS_ERR(flashlight_flash_low))
+            pinctrl_select_state(flashlight_pinctrl, flashlight_flash_low);
+        else if (state == STATE_HIGH && !IS_ERR(flashlight_flash_high))
+            pinctrl_select_state(flashlight_pinctrl, flashlight_flash_high);
+        else
+            pr_debug("%s : set err, pin(%d) state(%d)\n", __func__, pin, state);
+        break;
+    case SUB_FLASHLIGHT_PIN_FLASH:
+        if (state == STATE_LOW && !IS_ERR(sub_flashlight_flash_low))
+            pinctrl_select_state(flashlight_pinctrl, sub_flashlight_flash_low);
+        else if (state == STATE_HIGH && !IS_ERR(sub_flashlight_flash_high))
+            pinctrl_select_state(flashlight_pinctrl, sub_flashlight_flash_high);
+        else
+            pr_debug("%s : set err, pin(%d) state(%d)\n", __func__, pin, state);
+        break;
+    default:
+            pr_debug("%s : set err, pin(%d) state(%d)\n", __func__, pin, state);
+        break;
+    }
+    pr_debug("%s : pin(%d) state(%d)\n", __func__, pin, state);
+    return ret;
 }
 
 
@@ -135,51 +206,65 @@ static int dummy_pinctrl_set(int pin, int state)
 /* flashlight enable function */
 static int dummy_enable(void)
 {
-	int pin = 0, state = 0;
+  printk("%s line %d \n",__func__,__LINE__);
+  printk("g_duty %d \n",g_duty);
+  if(g_duty < 6)
+  {
+    flashlight_gpio_set(FLASHLIGHT_PIN_TORCH,STATE_HIGH);
+    flashlight_gpio_set(FLASHLIGHT_PIN_FLASH,STATE_LOW);
+  }
+  else
+  {
+    flashlight_gpio_set(FLASHLIGHT_PIN_TORCH,STATE_HIGH);
+    flashlight_gpio_set(FLASHLIGHT_PIN_FLASH,STATE_HIGH);
+  }
+  return 0;
 
-	/* TODO: wrap enable function */
-
-	return dummy_pinctrl_set(pin, state);
 }
 
 /* flashlight disable function */
 static int dummy_disable(void)
 {
-	int pin = 0, state = 0;
-
-	/* TODO: wrap disable function */
-
-	return dummy_pinctrl_set(pin, state);
+  printk("%s line %d \n",__func__,__LINE__);
+  flashlight_gpio_set(FLASHLIGHT_PIN_TORCH,STATE_LOW);
+  flashlight_gpio_set(FLASHLIGHT_PIN_FLASH,STATE_LOW);
+  return 0;
 }
-
+int sub_flashlight_gpio_enable(bool en)
+{
+    printk("%s en = %d\n",__func__,en);
+    if(en)
+    {
+        flashlight_gpio_set(SUB_FLASHLIGHT_PIN_FLASH,STATE_HIGH);
+    }
+    else
+    {
+        flashlight_gpio_set(SUB_FLASHLIGHT_PIN_FLASH,STATE_LOW);
+    }
+  return 0;
+}
 /* set flashlight level */
 static int dummy_set_level(int level)
 {
-	int pin = 0, state = 0;
-
-	/* TODO: wrap set level function */
-
-	return dummy_pinctrl_set(pin, state);
+    printk(" FL_dim_duty line=%d\n", __LINE__);
+    g_duty = level;
+    return 0;
 }
 
 /* flashlight init */
 static int dummy_init(void)
 {
-	int pin = 0, state = 0;
-
-	/* TODO: wrap init function */
-
-	return dummy_pinctrl_set(pin, state);
+  printk(KERN_ERR "%s line %d \n",__func__,__LINE__);
+  flashlight_gpio_set(FLASHLIGHT_PIN_TORCH,STATE_LOW);
+  flashlight_gpio_set(FLASHLIGHT_PIN_FLASH,STATE_LOW);
+  return 0;
 }
 
 /* flashlight uninit */
 static int dummy_uninit(void)
 {
-	int pin = 0, state = 0;
-
-	/* TODO: wrap uninit function */
-
-	return dummy_pinctrl_set(pin, state);
+    dummy_disable();
+    return 0;
 }
 
 /******************************************************************************
@@ -472,7 +557,7 @@ static int dummy_remove(struct platform_device *pdev)
 
 #ifdef CONFIG_OF
 static const struct of_device_id dummy_gpio_of_match[] = {
-	{.compatible = DUMMY_GPIO_DTNAME},
+	{.compatible = DUMMY_DTNAME},
 	{},
 };
 MODULE_DEVICE_TABLE(of, dummy_gpio_of_match);

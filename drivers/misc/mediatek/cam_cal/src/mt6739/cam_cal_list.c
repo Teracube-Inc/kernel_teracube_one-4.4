@@ -21,6 +21,7 @@ struct stCAM_CAL_LIST_STRUCT g_camCalList[] = {
 	{IMX338_SENSOR_ID, 0xA0, Common_read_region},
 	{S5K4E6_SENSOR_ID, 0xA8, Common_read_region},
 	{IMX386_SENSOR_ID, 0xA0, Common_read_region},
+	{S5K3L8_SENSOR_ID, 0xA0, Common_read_region},
 	{S5K3M3_SENSOR_ID, 0xA0, Common_read_region},
 	{S5K2L7_SENSOR_ID, 0xA0, Common_read_region},
 	{IMX398_SENSOR_ID, 0xA0, Common_read_region},

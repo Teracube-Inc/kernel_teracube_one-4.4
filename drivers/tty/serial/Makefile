@@ -19,6 +19,7 @@ obj-$(CONFIG_SERIAL_SUNSAB) += sunsab.o
 
 # Now bring in any enabled 8250/16450/16550 type drivers.
 obj-$(CONFIG_SERIAL_8250) += 8250/
+obj-$(CONFIG_SERIAL_WK2132) += wk2xxx_i2c/
 
 obj-$(CONFIG_SERIAL_AMBA_PL010) += amba-pl010.o
 obj-$(CONFIG_SERIAL_AMBA_PL011) += amba-pl011.o

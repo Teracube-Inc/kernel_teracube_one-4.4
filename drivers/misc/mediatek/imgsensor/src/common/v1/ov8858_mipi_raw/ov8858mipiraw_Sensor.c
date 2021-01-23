@@ -1959,24 +1959,24 @@ static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
 			if (*sensor_id == imgsensor_info.sensor_id) {
 				if ((read_cmos_sensor(0x302A)) == 0XB2) {
 					ov8858version = OV8858R2A;
-					SENSORDB("i2c write id: 0x%x, id: 0x%x, version = %d(0=r2a,1=r1a)\n",
+					printk("ov8858 i2c write id: 0x%x, id: 0x%x, version = %d(0=r2a,1=r1a)\n",
 					     imgsensor.i2c_write_id, *sensor_id, ov8858version);
 					bm = get_boot_mode();
-					LOG_INF("bm %d\n", bm);
+					printk("bm %d\n", bm);
 					if (bm == FACTORY_BOOT || bm == ATE_FACTORY_BOOT) {
 						imgsensor_info.sensor_output_dataformat = SENSOR_OUTPUT_FORMAT_RAW_B;
 						imgsensor_dpcm_info_ov8858[1] = COMP8_DI_2A;
 					}
 					return ERROR_NONE;
 				} else if ((read_cmos_sensor(0x302A)) == 0XB1) {
-					LOG_INF("=R1A sensor,contact OV please!=\n");
+					printk("=R1A sensor,contact OV8858 please!=\n");
 					return ERROR_SENSOR_CONNECT_FAIL;
 				}
-				LOG_INF("read ov8858 R1A R2A bate fail\n");
+				printk("read ov8858 R1A R2A bate fail\n");
 				return ERROR_SENSOR_CONNECT_FAIL;
 
 			}
-			LOG_INF("Read sensor id fail, id: 0x%x,sensor_id=0x%x\n",
+			printk("ov8858 Read sensor id fail, id: 0x%x,sensor_id=0x%x\n",
 				imgsensor.i2c_write_id, *sensor_id);
 			retry--;
 		} while (retry > 0);

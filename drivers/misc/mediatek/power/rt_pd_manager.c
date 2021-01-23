@@ -44,6 +44,13 @@
 #include "usb_switch.h"
 #include "typec.h"
 #endif
+/* Stoneoim:zhangqingzhan on: Wed, 25 Oct 2017 11:45:52 +0800
+ * for type C headset
+ */
+#ifdef CONFIG_MT6370_TYPEC_HEADSET
+extern void accdet_plug_func(int plugstate);
+#endif
+// End of Stoneoim: zhangqingzhan
 
 static DEFINE_MUTEX(param_lock);
 
@@ -300,6 +307,18 @@ static int pd_tcp_notifier_call(struct notifier_block *nb,
 			pr_notice("TCP_NOTIFY_SINK_VBUS=> plug in");
 #endif
 #endif
+/* Stoneoim:zhangqingzhan on: Wed, 25 Oct 2017 11:31:03 +0800
+ * for type c headset
+ */
+#ifdef CONFIG_MT6370_TYPEC_HEADSET
+        } else if (noti->typec_state.new_state == TYPEC_ATTACHED_AUDIO &&
+            noti->typec_state.old_state == TYPEC_UNATTACHED) {
+          accdet_plug_func(1);
+        } else if (noti->typec_state.old_state == TYPEC_ATTACHED_AUDIO &&
+            noti->typec_state.new_state == TYPEC_UNATTACHED) {
+          accdet_plug_func(0);
+#endif
+// End of Stoneoim: zhangqingzhan
 		} else if ((noti->typec_state.old_state == TYPEC_ATTACHED_SNK ||
 			noti->typec_state.old_state == TYPEC_ATTACHED_CUSTOM_SRC ||
 			noti->typec_state.old_state == TYPEC_ATTACHED_NORP_SRC)

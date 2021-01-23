@@ -13,7 +13,7 @@
 
 #$(call all-subdir-src-or-makefile)
 MTK_PLATFORM := $(subst ",,$(CONFIG_MTK_PLATFORM))
-subdir-ccflags-y += -Werror
+#subdir-ccflags-y += -Werror
 subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/hibcore
 subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/include
 subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat/$(MTK_PLATFORM)/include
@@ -184,6 +184,7 @@ obj-$(CONFIG_MTK_VOW_SUPPORT)	+= vow/
 obj-$(CONFIG_USB)	+= usb_boost/
 #obj-$(CONFIG_RT_REGMAP) += rt-regmap/
 obj-$(CONFIG_MEDIATEK_SOLUTION)	+= cmo/
+obj-$(CONFIG_MTK_SMARTPA_SOUND)	+= smartpa/
 obj-$(CONFIG_PCIE_MTK_UNIT)	+= pcie_ut/
 obj-y += mtprintk/
 obj-$(CONFIG_MTK_ICCS_SUPPORT)+= iccs/
@@ -196,6 +197,16 @@ obj-$(CONFIG_MTK_ES_REG) += es_reg/
 #timer
 obj-y += timer/
 
+ifneq ($(strip $(CUSTOM_KERNEL_HALL)),)
+    obj-y += hall/
+endif
+obj-$(CONFIG_MTK_SCANNER)	+= scanner/
+obj-$(CONFIG_MTK_PSAM)	+= psam/
 #io boost
 obj-y += io_boost/
+ifeq ($(strip $(VANZO_FEATURE_FAKE_DUAL_CAMERA_BY_NAME)),yes)
+ifneq ($(strip $(CUSTOM_FAKE_CAMERA)),)
+subdir-ccflags-y +=            -DCONFIG_FAKE_DUAL_CAMERA
+endif
+endif
 

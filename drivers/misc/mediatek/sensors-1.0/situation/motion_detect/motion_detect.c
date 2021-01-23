@@ -84,15 +84,13 @@ static int motion_detect_batch(int flag, int64_t samplingPeriodNs, int64_t maxBa
 }
 static int motion_detect_recv_data(struct data_unit_t *event, void *reserved)
 {
-	int err = 0;
-
 	if (event->flush_action == FLUSH_ACTION)
 		MOTIONHUB_LOG("stat do not support flush\n");
 	else if (event->flush_action == DATA_ACTION) {
 		__pm_wakeup_event(&motion_d_wake_lock, msecs_to_jiffies(100));
-		err = situation_notify(ID_MOTION_DETECT);
+		situation_notify(ID_MOTION_DETECT);
 	}
-	return err;
+	return 0;
 }
 
 static int motion_detect_local_init(void)

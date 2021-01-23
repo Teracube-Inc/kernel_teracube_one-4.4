@@ -71,6 +71,7 @@ int tpd_em_sample_cnt = 16;
 module_param(tpd_em_sample_cnt, int, 0664);
 
 int tpd_load_status;
+int tpd_msg22xx_load;
 module_param(tpd_load_status, int, 0664);
 
 int tpd_em_asamp = 1;

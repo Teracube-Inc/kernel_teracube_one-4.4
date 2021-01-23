@@ -49,7 +49,12 @@
  * nodes, since there is no fixed association of minor numbers with any
  * particular SPI bus or device.
  */
-#define SPIDEV_MAJOR			153	/* assigned */
+
+/* Stoneoim:zhangxinyu on: Wed, 10 Oct 2018 16:53:56 +0800
+#define SPIDEV_MAJOR			153
+ */
+#define SPIDEV_MAJOR			155	/* assigned */
+// End of Stoneoim:zhangxinyu
 #define N_SPI_MINORS			32	/* ... up to 256 */
 
 static DECLARE_BITMAP(minors, N_SPI_MINORS);
@@ -89,7 +94,11 @@ struct spidev_data {
 static LIST_HEAD(device_list);
 static DEFINE_MUTEX(device_list_lock);
 
-static unsigned bufsiz = 4096;
+/* Stoneoim:zhangxinyu on: Thu, 30 Nov 2017 10:26:25 +0800
+    static unsigned bufsiz =  4096;
+ */
+static unsigned bufsiz =  18 * 1024;
+// End of Stoneoim:zhangxinyu
 module_param(bufsiz, uint, S_IRUGO);
 MODULE_PARM_DESC(bufsiz, "data bytes in biggest supported SPI message");
 

@@ -150,7 +150,6 @@ MINT32 imgsensor_sensor_open(struct IMGSENSOR_SENSOR *psensor)
 #ifdef CONFIG_MTK_CCU
 	struct ccu_sensor_info ccuSensorInfo;
 	enum IMGSENSOR_SENSOR_IDX sensor_idx = psensor->inst.sensor_idx;
-	struct i2c_client *pi2c_client = NULL;
 #endif
 
 	IMGSENSOR_FUNCTION_ENTRY();
@@ -201,12 +200,6 @@ MINT32 imgsensor_sensor_open(struct IMGSENSOR_SENSOR *psensor)
 #ifdef CONFIG_MTK_CCU
 		ccuSensorInfo.slave_addr = (psensor_inst->i2c_cfg.pinst->msg->addr << 1);
 		ccuSensorInfo.sensor_name_string = (char *)(psensor_inst->psensor_list->name);
-		pi2c_client = psensor_inst->i2c_cfg.pinst->pi2c_client;
-		if (pi2c_client)
-			ccuSensorInfo.i2c_id = (((struct mt_i2c *)
-				i2c_get_adapdata(pi2c_client->adapter))->id);
-		else
-			ccuSensorInfo.i2c_id = -1;
 		ccu_set_sensor_info(sensor_idx, &ccuSensorInfo);
 #endif
 
@@ -485,6 +478,25 @@ static inline int imgsensor_check_is_alive(struct IMGSENSOR_SENSOR *psensor)
 		PK_DBG("Sensor found ID = 0x%x\n", sensorID);
 		err = ERROR_NONE;
 	}
+
+/* Stoneoim:maxiaojun on: Mon, 26 Aug 2013 17:04:18 +0800
+ * board device name support.
+ */
+#ifdef VANZO_DEVICE_NAME_SUPPORT
+    {
+        extern void v_set_dev_name(int id, char *name);
+        if (ERROR_NONE == err) {
+            if (IMGSENSOR_SENSOR_IDX_MAIN == psensor_inst->sensor_idx) {
+                v_set_dev_name(3, (char *)psensor_inst->psensor_list->name);
+            } else if (IMGSENSOR_SENSOR_IDX_SUB == psensor_inst->sensor_idx) {
+                v_set_dev_name(5, (char *)psensor_inst->psensor_list->name);
+            } else if (IMGSENSOR_SENSOR_IDX_MAIN2 == psensor_inst->sensor_idx) {
+                v_set_dev_name(4, (char *)psensor_inst->psensor_list->name);
+            }
+        }
+    }
+#endif
+// End of Stoneoim:maxiaojun
 
 	imgsensor_hw_power(&pimgsensor->hw, psensor, IMGSENSOR_HW_POWER_STATUS_OFF);
 	IMGSENSOR_PROFILE(&psensor_inst->profile_time, "CheckIsAlive");
@@ -886,21 +898,6 @@ static inline int adopt_CAMERA_HW_FeatureControl(void *pBuf)
 		break;
 #endif
 
-	case SENSOR_FEATURE_SET_MCLK_DRIVE_CURRENT:
-	{
-		MUINT32 __current = (*(MUINT32 *)pFeaturePara);
-
-		if (gimgsensor.mclk_set_drive_current != NULL)
-			gimgsensor.mclk_set_drive_current(
-				gimgsensor.hw.pdev[IMGSENSOR_HW_ID_MCLK]->pinstance,
-				pFeatureCtrl->InvokeCamera,
-				__current);
-		else
-			PK_DBG("%s, set drive current by pinctrl was not supported\n",
-			       __func__);
-
-		break;
-	}
 	case SENSOR_FEATURE_SET_I2C_BUF_MODE_EN:
 		ret = imgsensor_i2c_buffer_mode((*(unsigned long long *)pFeaturePara));
 		break;
@@ -1382,7 +1379,6 @@ static inline int adopt_CAMERA_HW_FeatureControl(void *pBuf)
 		break;
 	case SENSOR_FEATURE_SET_LSC_TBL:
 		{
-#define LSC_TBL_DATA_SIZE 1024
 			unsigned long long *pFeaturePara_64 = (unsigned long long *)pFeaturePara;
 			kal_uint32 u4RegLen = (kal_uint32)(*pFeaturePara_64);
 			void *usr_ptr_Reg = (void *)(uintptr_t) (*(pFeaturePara_64 + 1));
@@ -1390,20 +1386,19 @@ static inline int adopt_CAMERA_HW_FeatureControl(void *pBuf)
 			kal_uint8 *pReg = NULL;
 
 			/* buffer size exam */
-			if ((sizeof(kal_uint8) * u4RegLen) > IMGSENSOR_FEATURE_PARA_LEN_MAX ||
-				(u4RegLen > LSC_TBL_DATA_SIZE || u4RegLen < 0)) {
+			if ((sizeof(kal_uint8) * u4RegLen) > IMGSENSOR_FEATURE_PARA_LEN_MAX) {
 				kfree(pFeaturePara);
 				PK_PR_ERR(" buffer size (%u) is too large\n", u4RegLen);
 				return -EINVAL;
 			}
-			pReg = kmalloc_array((u4RegLen + 1), sizeof(kal_uint8), GFP_KERNEL);
+			pReg = kmalloc_array(u4RegLen, sizeof(kal_uint8), GFP_KERNEL);
 			if (pReg == NULL) {
 				kfree(pFeaturePara);
 				PK_PR_ERR(" ioctl allocate mem failed\n");
 				return -ENOMEM;
 			}
 
-			memset(pReg, 0x0, sizeof(kal_uint8) * (u4RegLen + 1));
+			memset(pReg, 0x0, sizeof(kal_uint8) * u4RegLen);
 
 			if (copy_from_user((void *)pReg,
 					   (void *)usr_ptr_Reg, sizeof(kal_uint8) * u4RegLen)) {
@@ -1416,6 +1411,10 @@ static inline int adopt_CAMERA_HW_FeatureControl(void *pBuf)
 								   (unsigned char *)pReg,
 								   (unsigned int *)&u4RegLen);
 
+			if (copy_to_user((void __user *)usr_ptr_Reg,
+					 (void *)pReg, sizeof(kal_uint8) * u4RegLen)) {
+				PK_DBG("[CAMERA_HW]ERROR: copy_to_user fail\n");
+			}
 			kfree(pReg);
 		}
 
@@ -1884,6 +1883,28 @@ static struct platform_driver gimgsensor_platform_driver = {
 		   }
 };
 
+#if  defined(VANZO_FEATURE_FAKE_DUAL_CAMERA_BY_NAME)
+static ssize_t show_BV_value(struct device_driver *ddri, char *buf)
+{
+    MUINT32 sensorID = 0;
+
+    MUINT32 retLen = 0;
+    struct IMGSENSOR_SENSOR      *psensor = imgsensor_sensor_get_inst(IMGSENSOR_SENSOR_IDX_MAP(DUAL_CAMERA_MAIN_SENSOR));
+    imgsensor_sensor_feature_control(psensor, SENSOR_FEATURE_GET_YUV_SENSOR_BV, (MUINT8 *)&sensorID, &retLen);
+  return snprintf(buf, PAGE_SIZE, "%d\n", sensorID);
+}
+
+static ssize_t store_BV_value(struct device_driver *ddri, const char *buf, size_t count)
+{
+  return 0;
+}
+
+static DRIVER_ATTR(bv_val,   S_IWUSR | S_IRUGO, show_BV_value, store_BV_value);
+
+static struct driver_attribute *cam_bv_val[] = {
+  &driver_attr_bv_val,   
+};
+#endif
 static int __init imgsensor_init(void)
 {
 	PK_DBG("[camerahw_probe] start\n");
@@ -1892,7 +1913,11 @@ static int __init imgsensor_init(void)
 		PK_PR_ERR("failed to register CAMERA_HW driver\n");
 		return -ENODEV;
 	}
-
+#if  defined(VANZO_FEATURE_FAKE_DUAL_CAMERA_BY_NAME)
+    if(driver_create_file(&gimgsensor_platform_driver.driver, cam_bv_val[0])){
+		PK_PR_ERR("create bv_val failed!!\n");
+    }
+#endif
 	return 0;
 }
 

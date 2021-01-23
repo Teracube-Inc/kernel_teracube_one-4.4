@@ -409,7 +409,7 @@ static int m4u_fill_sgtable_user(struct vm_area_struct *vma, unsigned long va, i
 				if (vma->vm_flags & VM_WRITE)
 					flags |= FOLL_WRITE;
 				ret = get_user_pages(current, current->mm, va_tmp, 1,
-					flags, &pages, NULL);
+					flags, 0, &pages, NULL);
 
 				if (ret == 1)
 					pa = page_to_phys(pages) | (va_tmp & ~PAGE_MASK);

@@ -14,9 +14,7 @@
 #include <linux/timer.h>
 #include <linux/of.h>
 #include <linux/of_irq.h>
-#ifdef CONFIG_ACCDET_EINT
 #include <linux/of_gpio.h>
-#endif
 
 /* for EINT register and enum */
 #include <upmu_common.h>
@@ -89,6 +87,12 @@ unsigned int g_gpio_headset_deb;
 int g_accdet_irq;
 struct pinctrl *accdet_pinctrl1;
 struct pinctrl_state *pins_eint_int;
+#ifdef CONFIG_MT6370_TYPEC_HEADSET
+struct pinctrl_state *pins_audio_mode;
+struct pinctrl_state *pins_usb_mode;
+struct pinctrl_state *pins_micswitch_high;
+struct pinctrl_state *pins_micswitch_low;
+#endif
 #endif
 
 #ifdef HW_MODE_SUPPORT
@@ -132,6 +136,9 @@ static struct timer_list accdet_init_timer;
 
 static struct config_accdet_param *accdet_cust_setting;
 static struct config_headset_param headset_dts_data;
+#ifdef CONFIG_ACCDET_JACK_SWITCH
+static int jackswitch_gpio = 0;
+#endif
 
 char *accdet_status_string[] = {
 	"Plug_out",
@@ -364,12 +371,39 @@ static int accdet_get_dts_data(void)
 		ACCDET_INFO("[accdet_get_dts_data] deb0=0x%x,deb1=0x%x,deb3=0x%x,deb4=0x%x\n",
 		     accdet_cust_setting->debounce0, accdet_cust_setting->debounce1,
 		     accdet_cust_setting->debounce3, accdet_cust_setting->debounce4);
+
+#ifdef CONFIG_ACCDET_JACK_SWITCH
+        jackswitch_gpio = of_get_named_gpio(node, "jackswitch-gpio", 0);
+        if (jackswitch_gpio < 0) {
+		    ACCDET_INFO("[accdet_get_dts_data] jackswitch_gpio error\n");
+        } else {
+		    ACCDET_INFO("[accdet_get_dts_data] jackswitch_gpio=%d\n", jackswitch_gpio);
+        }
+#endif
 	} else {
 		ACCDET_ERROR("%s can't find compatible dts node\n", __func__);
 		return -1;
 	}
 	return 0;
 }
+
+#ifdef CONFIG_ACCDET_JACK_SWITCH
+static void accdet_jackswitch_enable(bool en)
+{
+	ACCDET_DEBUG("[accdet_jackswitch_enable] jack switch enable = %d\n", en);
+    if (en) {
+        if (gpio_is_valid(jackswitch_gpio)) {
+	        ACCDET_DEBUG("[accdet_jackswitch_enable] jackswitch_gpio set 1\n");
+            gpio_set_value(jackswitch_gpio, 1);
+        }
+    } else {
+        if (gpio_is_valid(jackswitch_gpio)) {
+	        ACCDET_DEBUG("[accdet_jackswitch_enable] jackswitch_gpio set 0\n");
+            gpio_set_value(jackswitch_gpio, 0);
+        }
+    }
+}
+#endif
 
 static void accdet_pmic_Read_Efuse_HPOffset(void)
 {
@@ -628,6 +662,12 @@ static inline void check_cable_type(void)
 	int tmp_ABC = 0;
 	unsigned int reg_val = 0;
 
+#ifdef CONFIG_MT6370_TYPEC_HEADSET
+    if(s_accdet_status == PLUG_OUT) {
+        pinctrl_select_state(accdet_pinctrl1, pins_micswitch_low);
+       // msleep(50);  /*PIN swap need ms */
+    }
+#endif
 	reg_val = pmic_pwrap_read(ACCDET_CON14);
 	/*A=bit2; B=bit1;C=bit0*/
 	current_status = ((reg_val>>ACCDET_STATE_MEM_BIT_OFFSET)&ACCDET_STATE_ABC_MASK);
@@ -636,6 +676,23 @@ static inline void check_cable_type(void)
 
 	/* just get AB state, ignore C */
 	/* current_status = (current_status & 0x06); */
+/* Stoneoim:zhangqingzhan on: Wed, 25 Oct 2017 18:09:00 +0800
+ * for typec headset
+ */
+#if 0
+    if(s_accdet_status == PLUG_OUT) {
+      if (current_status == 0) {
+        pinctrl_select_state(accdet_pinctrl1, pins_micswitch_high);
+        msleep(50);  /*PIN swap need ms */
+        reg_val = pmic_pwrap_read(ACCDET_CON14);
+        /*A=bit2; B=bit1;C=bit0*/
+        current_status = ((reg_val>>ACCDET_STATE_MEM_BIT_OFFSET)&ACCDET_STATE_ABC_MASK);
+        tmp_ABC = current_status;/* have ignored C  already */
+        ACCDET_DEBUG("[accdet2]addr:[0x%x]=0x%x, cur_ABC=0x%x\n", ACCDET_CON14, reg_val, current_status);
+      }
+    }
+#endif
+// End of Stoneoim: zhangqingzhan
 
 	s_button_status = 0;
 	s_pre_status = s_accdet_status;
@@ -647,6 +704,13 @@ static inline void check_cable_type(void)
 			if (s_eint_accdet_sync_flag == 1) {
 				s_cable_type = HEADSET_NO_MIC;/* 3-poles */
 				s_accdet_status = HOOK_SWITCH;
+/* Foeec:zhangqingzhan on: Wed, 04 Mar 2020 13:42:51 +0800
+ * for typec headset
+ */
+#ifdef CONFIG_MT6370_TYPEC_HEADSET
+        pinctrl_select_state(accdet_pinctrl1, pins_micswitch_high);
+#endif
+// End of Foeec: zhangqingzhan
 			} else {
 				ACCDET_ERROR("[accdet]1.Headset has plugged out(000)\n");
 			}
@@ -1059,9 +1123,17 @@ static int accdet_eint_func(int eint_id)
 			accdet_set_debounce(accdet_state110, accdet_cust_setting->debounce3);
 			/* pmic_pwrap_write(ACCDET_CON09, accdet_cust_setting->debounce3); */
 
+#ifdef CONFIG_ACCDET_JACK_SWITCH
+            accdet_jackswitch_enable(false);
+            msleep(10);
+#endif
 			/* update the eint status */
 			g_cur_eint_state = EINT_PIN_PLUG_OUT;
 		} else {
+#ifdef CONFIG_ACCDET_JACK_SWITCH
+            accdet_jackswitch_enable(true);
+            msleep(300);
+#endif
 			pmic_pwrap_write(ACCDET_CON15, reg_val & (~ACCDET_EINT0_DEB_CLR));
 			/* eint debounce=0.12ms */
 			reg_val = pmic_pwrap_read(ACCDET_CON15);
@@ -1215,6 +1287,36 @@ static void accdet_workqueue_func(void)
 		ACCDET_ERROR("[accdet_workqueue_func]failed return:%d!\n", ret);
 }
 
+/* Stoneoim:zhangqingzhan on: Wed, 25 Oct 2017 18:06:37 +0800
+ * for type c headset
+ */
+#ifdef CONFIG_MT6370_TYPEC_HEADSET
+void accdet_plug_func(int plugstate)
+{
+	int ret = 0;
+
+	ACCDET_DEBUG("[accdet_ap_eint_func]Enter!\n");
+	if (plugstate == EINT_PIN_PLUG_OUT) {
+		/* the headset was plugged in set the polarity back as initialed */
+        pinctrl_select_state(accdet_pinctrl1, pins_usb_mode);
+        pinctrl_select_state(accdet_pinctrl1, pins_micswitch_low);
+		g_cur_eint_state = EINT_PIN_PLUG_OUT;
+
+	} else {
+		/* the headset was plugged out set the opposite polarity to what initialed */
+        pinctrl_select_state(accdet_pinctrl1, pins_audio_mode);
+        pinctrl_select_state(accdet_pinctrl1, pins_micswitch_low);
+		g_cur_eint_state = EINT_PIN_PLUG_IN;
+		mod_timer(&micbias_timer, jiffies + MICBIAS_DISABLE_TIMER);
+	}
+
+	ACCDET_DEBUG("[accdet_ap_eint_func]end,g_cur_eint_state=%d\n", g_cur_eint_state);
+
+	ret = queue_work(accdet_eint_workqueue, &accdet_eint_work);
+}
+#endif
+
+// End of Stoneoim: zhangqingzhan
 /*
  * PART5.4: static irq handler functions
  */
@@ -1286,6 +1388,37 @@ static inline int accdet_setup_eint(struct platform_device *accdet_device)
 		dev_info(&accdet_device->dev, "[accdet]Cannot find accdet pinctrl state_eint!\n");
 		return ret;
 	}
+/* Stoneoim:zhangqingzhan on: Wed, 25 Oct 2017 18:07:31 +0800
+ * typec headset
+ */
+#ifdef CONFIG_MT6370_TYPEC_HEADSET
+	pins_audio_mode = pinctrl_lookup_state(accdet_pinctrl1, "state_audio_mode");
+	if (IS_ERR(pins_audio_mode)) {
+		ret = PTR_ERR(pins_audio_mode);
+		dev_err(&accdet_device->dev, "fwq Cannot find accdet pinctrl state_audio_mode!\n");
+		return ret;
+	}
+	pins_usb_mode = pinctrl_lookup_state(accdet_pinctrl1, "state_usb_mode");
+	if (IS_ERR(pins_usb_mode)) {
+		ret = PTR_ERR(pins_usb_mode);
+		dev_err(&accdet_device->dev, "fwq Cannot find accdet pinctrl state_usb_mode!\n");
+		return ret;
+	}
+	pins_micswitch_high = pinctrl_lookup_state(accdet_pinctrl1, "state_micswitch_high");
+	if (IS_ERR(pins_micswitch_high)) {
+		ret = PTR_ERR(pins_micswitch_high);
+		dev_err(&accdet_device->dev, "fwq Cannot find accdet pinctrl pins_micswitch_high!\n");
+		return ret;
+	}
+	pins_micswitch_low = pinctrl_lookup_state(accdet_pinctrl1, "state_micswitch_low");
+	if (IS_ERR(pins_micswitch_low)) {
+		ret = PTR_ERR(pins_micswitch_low);
+		dev_err(&accdet_device->dev, "fwq Cannot find accdet pinctrl pins_micswitch_low!\n");
+		return ret;
+	}
+#endif
+
+// End of Stoneoim: zhangqingzhan
 	pinctrl_select_state(accdet_pinctrl1, pins_eint_int);
 #endif
 	node = of_find_matching_node(node, accdet_of_match);
@@ -1338,7 +1471,6 @@ static int accdet_irq_handler(void)
 #if defined(CONFIG_MOISTURE_INTERNAL_SUPPORT) || defined(CONFIG_MOISTURE_EXTERNAL_SUPPORT)
 	if (g_cur_eint_state == EINT_PIN_PLUG_OUT) {
 		ACCDET_INFO("=========[ACCDET]Moisture Enable=============\n\r");
-
 		old_value1 = pmic_pwrap_read(ACCDET_CON00);
 		old_value2 = pmic_pwrap_read(AUDENC_ANA_CON10);
 		old_value3 = pmic_pwrap_read(AUDENC_ANA_CON11);

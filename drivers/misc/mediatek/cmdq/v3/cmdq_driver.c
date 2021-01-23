@@ -112,15 +112,6 @@ static const struct file_operations cmdqDebugInstructionCountOp = {
 };
 #endif
 
-static u64 job_mapping_idx = 1;
-static struct list_head job_mapping_list;
-struct cmdq_job_mapping_struct {
-	u64 id;
-	struct TaskStruct *job;
-	struct list_head list_entry;
-};
-static DEFINE_MUTEX(cmdq_job_mapping_list_mutex);
-
 static int cmdq_open(struct inode *pInode, struct file *pFile)
 {
 	struct cmdqFileNodeStruct *pNode;
@@ -316,7 +307,6 @@ do { \
 
 static long cmdq_driver_destroy_secure_medadata(struct cmdqCommandStruct *pCommand)
 {
-#ifdef CMDQ_SECURE_PATH_SUPPORT
 	u32 i;
 
 	kfree(CMDQ_U32_PTR(pCommand->secData.addrMetadatas));
@@ -324,7 +314,7 @@ static long cmdq_driver_destroy_secure_medadata(struct cmdqCommandStruct *pComma
 
 	for (i = 0; i < ARRAY_SIZE(pCommand->secData.ispMeta.ispBufs); i++)
 		CMDQ_PTR_FREE_NULL(pCommand->secData.ispMeta.ispBufs[i].va);
-#endif
+
 	return 0;
 }
 
@@ -580,9 +570,6 @@ static s32 cmdq_driver_copy_task_prop_from_user(void *from, u32 size, void **to)
 		}
 
 		*to = task_prop;
-	} else if (to) {
-		CMDQ_LOG("Initialize prop_addr to NULL...\n");
-		*to = NULL;
 	}
 
 	return 0;
@@ -590,10 +577,8 @@ static s32 cmdq_driver_copy_task_prop_from_user(void *from, u32 size, void **to)
 
 static void cmdq_release_task_property(void **prop_addr, u32 *prop_size)
 {
-	if (!prop_addr || !prop_size || !*prop_size) {
-		CMDQ_LOG("Return w/o need of kfree(prop_addr)\n");
+	if (!prop_addr || !prop_size)
 		return;
-	}
 
 	kfree(*prop_addr);
 	*prop_addr = NULL;
@@ -616,8 +601,6 @@ static long cmdq_ioctl(struct file *pFile, unsigned int code, unsigned long para
 	struct CmdqRecExtend ext = {
 		.ctrl = cmdq_core_get_controller(),
 		};
-
-	struct cmdq_job_mapping_struct *mapping_job = NULL, *tmp = NULL;
 
 	switch (code) {
 	case CMDQ_IOCTL_EXEC_COMMAND:
@@ -756,26 +739,8 @@ static long cmdq_ioctl(struct file *pFile, unsigned int code, unsigned long para
 
 		cmdq_release_task_property((void *)CMDQ_U32_PTR(&job.command.prop_addr),
 						&job.command.prop_size);
-
-		/* privateData can reset since it has passed to handle */
-		job.command.privateData = 0;
-
-		mapping_job = kzalloc(sizeof(*mapping_job), GFP_KERNEL);
-		if (!mapping_job)
-			return -ENOMEM;
-
 		if (status >= 0) {
-			INIT_LIST_HEAD(&mapping_job->list_entry);
-			mutex_lock(&cmdq_job_mapping_list_mutex);
-			if (job_mapping_idx == 0)
-				job_mapping_idx = 1;
-			mapping_job->id = job_mapping_idx;
-			job.hJob = job_mapping_idx;
-			job_mapping_idx++;
-			mapping_job->job = pTask;
-			list_add_tail(&mapping_job->list_entry, &job_mapping_list);
-			mutex_unlock(&cmdq_job_mapping_list_mutex);
-
+			job.hJob = (unsigned long)pTask;
 			if (copy_to_user((void *)param, (void *)&job, sizeof(struct cmdqJobStruct))) {
 				CMDQ_ERR("CMDQ_IOCTL_ASYNC_JOB_EXEC copy_to_user failed\n");
 				return -EFAULT;
@@ -783,7 +748,6 @@ static long cmdq_ioctl(struct file *pFile, unsigned int code, unsigned long para
 		} else {
 			job.hJob = (unsigned long)NULL;
 			CMDQ_ERR("submit fail status:%d\n", status);
-			kfree(mapping_job);
 			return -EFAULT;
 		}
 		break;
@@ -793,22 +757,8 @@ static long cmdq_ioctl(struct file *pFile, unsigned int code, unsigned long para
 			return -EFAULT;
 		}
 
-		pTask = NULL;
 		/* verify job handle */
-		mutex_lock(&cmdq_job_mapping_list_mutex);
-		list_for_each_entry_safe(mapping_job, tmp, &job_mapping_list,
-			list_entry) {
-			if (mapping_job->id == jobResult.hJob) {
-				pTask = mapping_job->job;
-				CMDQ_MSG("find task:%p with id:%llx\n",
-					pTask, jobResult.hJob);
-				list_del(&mapping_job->list_entry);
-				kfree(mapping_job);
-				break;
-			}
-		}
-		mutex_unlock(&cmdq_job_mapping_list_mutex);
-
+		pTask = cmdq_core_get_task_ptr((void *)(unsigned long)jobResult.hJob);
 		if (!pTask) {
 			CMDQ_ERR("invalid task ptr = 0x%llx\n", jobResult.hJob);
 			return -EFAULT;
@@ -1206,8 +1156,6 @@ static int cmdq_probe(struct platform_device *pDevice)
 #ifdef CMDQ_INSTRUCTION_COUNT
 	device_create_file(&pDevice->dev, &dev_attr_instruction_count_level);
 #endif
-
-	INIT_LIST_HEAD(&job_mapping_list);
 
 	CMDQ_MSG("CMDQ driver probe end\n");
 	cmdq_mdp_get_func()->mdp_probe();

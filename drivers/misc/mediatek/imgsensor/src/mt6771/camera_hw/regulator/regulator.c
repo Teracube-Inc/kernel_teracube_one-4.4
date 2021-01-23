@@ -13,7 +13,15 @@
 
 #include "regulator.h"
 
-
+/* Stoneoim:zhangxinyu on: Fri, 27 Mar 2020 14:36:51 +0800
+ */
+static int regulator_status[REGULATOR_TYPE_MAX_NUM] = {0};
+static void check_for_regulator_get(struct REGULATOR *preg, struct device *pdevice, int index);
+static void check_for_regulator_put(struct REGULATOR *preg, int index);
+static struct device_node *of_node_record = NULL;
+static DEFINE_MUTEX(g_regulator_state_mutex);
+static struct device *gimgsensor_device;
+// End of Stoneoim:zhangxinyu
 static const int regulator_voltage[] = {
 	REGULATOR_VOLTAGE_0,
 	REGULATOR_VOLTAGE_1000,
@@ -56,6 +64,11 @@ static enum IMGSENSOR_RETURN regulator_init(
 	struct REGULATOR_CTRL *pregulator_ctrl = regulator_control;
 	int i;
 
+        /* Stoneoim:zhangxinyu on: Fri, 27 Mar 2020 14:39:16 +0800
+         */
+        gimgsensor_device = &pcommon->pplatform_device->dev;
+        of_node_record = gimgsensor_device->of_node;
+        // End of Stoneoim:zhangxinyu
 	for (i = 0; i < REGULATOR_TYPE_MAX_NUM; i++, pregulator_ctrl++) {
 		preg->pregulator[i] = regulator_get(
 				&pcommon->pplatform_device->dev,
@@ -64,6 +77,11 @@ static enum IMGSENSOR_RETURN regulator_init(
 			PK_PR_ERR("regulator[%d]  %s fail!\n",
 						i, pregulator_ctrl->pregulator_type);
 		atomic_set(&preg->enable_cnt[i], 0);
+
+                /* Stoneoim:zhangxinyu on: Fri, 27 Mar 2020 14:38:40 +0800
+                 */
+                regulator_status[i] = 1;
+                // End of Stoneoim:zhangxinyu
 	}
 
 	return IMGSENSOR_RETURN_SUCCESS;
@@ -110,6 +128,10 @@ static enum IMGSENSOR_RETURN regulator_set(
 		(sensor_idx == IMGSENSOR_SENSOR_IDX_SUB2)   ? REGULATOR_TYPE_SUB2_VCAMA :
 		REGULATOR_TYPE_MAIN3_VCAMA;
 
+        /* Stoneoim:zhangxinyu on: Fri, 27 Mar 2020 14:37:56 +0800
+         */
+        check_for_regulator_get(preg,gimgsensor_device,(reg_type_offset + pin - IMGSENSOR_HW_PIN_AVDD));
+        // End of Stoneoim:zhangxinyu
 	pregulator = preg->pregulator[reg_type_offset + pin - IMGSENSOR_HW_PIN_AVDD];
 	enable_cnt = preg->enable_cnt + (reg_type_offset + pin - IMGSENSOR_HW_PIN_AVDD);
 
@@ -138,6 +160,11 @@ static enum IMGSENSOR_RETURN regulator_set(
 				PK_PR_ERR("[regulator]fail to regulator_disable, powertype: %d\n", pin);
 				return IMGSENSOR_RETURN_ERROR;
 			}
+
+                        /* Stoneoim:zhangxinyu on: Fri, 27 Mar 2020 14:37:30 +0800
+                         */
+                        check_for_regulator_put(preg, (reg_type_offset + pin - IMGSENSOR_HW_PIN_AVDD));
+                        // End of Stoneoim:zhangxinyu
 			atomic_dec(enable_cnt);
 		}
 	} else {
@@ -181,3 +208,35 @@ enum IMGSENSOR_RETURN imgsensor_hw_regulator_open(
 	return IMGSENSOR_RETURN_SUCCESS;
 }
 
+/* Stoneoim:zhangxinyu on: Fri, 27 Mar 2020 14:37:11 +0800
+ */
+static void check_for_regulator_get(struct REGULATOR *preg, struct device *pdevice, int index)
+{
+    struct device_node *pof_node;
+    mutex_lock(&g_regulator_state_mutex);
+    if(regulator_status[index]==0)
+    {
+        pof_node = pdevice->of_node;
+        pdevice->of_node = of_node_record;
+
+        preg->pregulator[index] = regulator_get(pdevice, regulator_control[index].pregulator_type);
+
+        pdevice->of_node = pof_node;
+        regulator_status[index] = 1;
+        //pr_err("regulator_dbg regulator_get %s, of_node:%p\n", regulator_control[index].pregulator_type, of_node_record);
+    }
+    mutex_unlock(&g_regulator_state_mutex);
+}
+
+static void check_for_regulator_put(struct REGULATOR *preg, int index)
+{
+    mutex_lock(&g_regulator_state_mutex);
+    if(regulator_status[index]==1)
+    {
+        regulator_put(preg->pregulator[index]);
+        regulator_status[index]=0;
+        //pr_err("regulator_dbg regulator_put %s\n", regulator_control[index].pregulator_type);
+    }
+    mutex_unlock(&g_regulator_state_mutex);
+}
+// End of Stoneoim:zhangxinyu

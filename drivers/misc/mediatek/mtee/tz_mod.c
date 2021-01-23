@@ -53,7 +53,9 @@
 #include "tz_secure_clock.h"
 #define MTEE_MOD_TAG "MTEE_MOD"
 
-#define MAX_TAG_SIZE	32
+#define TZ_PAGESIZE 0x1000	/* fix me!!!! need global define */
+
+#define PAGE_SHIFT 12		/* fix me!!!! need global define */
 
 #define TZ_DEVNAME "mtk_tz"
 
@@ -281,7 +283,7 @@ static long _map_user_pages(struct MTIOMMU_PIN_RANGE_T *pinRange,
 		return -ENOMEM;
 
 	pinRange->pageArray = (void *) pages;
-	write = (control == 0) ? FOLL_WRITE : 0;
+	write = (control == 0) ? 1 : 0;
 
 	/* Try to fault in all of the necessary pages */
 	down_read(&current->mm->mmap_sem);
@@ -294,10 +296,13 @@ static long _map_user_pages(struct MTIOMMU_PIN_RANGE_T *pinRange,
 		pinRange->isPage = 1;
 #if defined(CONFIG_MTEE_CMA_SECURE_MEMORY)
 		res = get_user_pages_durable(current, current->mm,
-					uaddr, nr_pages, write, pages, NULL);
+					uaddr, nr_pages,
+					write, 0,/* don't force */
+					pages, NULL);
 #else
 		res = get_user_pages(current, current->mm, uaddr, nr_pages,
-					write, pages, NULL);
+					write, 0,/* don't force */
+					pages, NULL);
 #endif
 	} else {
 		/* pfn mapped memory, don't touch page struct.
@@ -1144,9 +1149,6 @@ static long tz_client_reg_sharedmem_with_tag(struct file *file,
 	cret = copy_from_user(&cparam, (void *)arg, sizeof(cparam));
 	if (cret)
 		return -EFAULT;
-
-	if (cparam.tag_size > MAX_TAG_SIZE)
-		cparam.tag_size = MAX_TAG_SIZE;
 
 	return __tz_reg_sharedmem(file, arg, &cparam);
 }

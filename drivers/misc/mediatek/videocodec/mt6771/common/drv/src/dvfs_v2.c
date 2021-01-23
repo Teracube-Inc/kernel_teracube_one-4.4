@@ -21,7 +21,6 @@
 #include "dvfs_v2.h"
 
 #define DEFAULT_MHZ 99999
-#define MAX_SUBMIT (33*1000)
 /* #define DEBUG_ALGO */
 #ifdef DEBUG_ALGO
 #define AL_INFO pr_info
@@ -34,15 +33,9 @@ long long div_64(long long a, long long b)
 #if IS_ENABLED(64BIT)
 	return (a/b);
 #else
-	uint32_t rem = 0;
-	uint64_t dividend, divisor;
+	long long rem = 0;
 
-	dividend = (a >= 0) ? a : (-a);
-	divisor = (b >= 0) ? b : (-b);
-	rem = do_div(dividend, divisor);
-	a = ((a < 0) ^ (b < 0)) ?
-		(0LL - (long long)dividend) :
-		(long long)dividend;
+	rem = do_div(a, b);
 	return a;
 #endif
 }
@@ -287,7 +280,6 @@ int est_next_job(long long now_us, long long *t_us, int *kcy, int *min_mhz,
 {
 	struct codec_history *hist;
 	long long deadline;
-	long long exec_dur;
 	long long new_mhz;
 
 	if (t_us == 0 || kcy == 0 || min_mhz == 0 || job == 0)
@@ -309,15 +301,10 @@ int est_next_job(long long now_us, long long *t_us, int *kcy, int *min_mhz,
 			*t_us = now_us;
 		else {
 			if (deadline > now_us) {
-				exec_dur = deadline - now_us;
-				exec_dur = (exec_dur > (MAX_SUBMIT * 2)) ?
-						(MAX_SUBMIT * 2) : exec_dur;
-				new_mhz = div_64((*kcy) * 1000LL, exec_dur);
+				new_mhz = div_64((*kcy) * 1000LL,
+						 (deadline - now_us));
 				if (new_mhz > *min_mhz)
 					*min_mhz = (int)new_mhz;
-
-				if (*min_mhz == 0)
-					*min_mhz = 1;
 
 				*t_us = now_us + div_64((*kcy) * 1000LL,
 							(*min_mhz));

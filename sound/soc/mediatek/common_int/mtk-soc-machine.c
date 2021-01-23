@@ -688,6 +688,9 @@ static struct snd_soc_dai_link mt_soc_extspk_dai[] = {
 #ifdef CONFIG_SND_SOC_MAX98926
 		.codec_dai_name = "max98926-aif1",
 		.codec_name = "MAX98926_MT",
+#elif defined(CONFIG_SND_SMARTPA_AW8898)
+        .codec_dai_name = "aw8898-aif",
+        .codec_name = "aw8898_smartpa",
 #elif defined(CONFIG_SND_SOC_CS35L35)
 		.codec_dai_name = "cs35l35-pcm",
 		.codec_name = "cs35l35.2-0040",
@@ -702,6 +705,33 @@ static struct snd_soc_dai_link mt_soc_extspk_dai[] = {
 		.codec_name = "snd-soc-dummy",
 #endif
 	},
+#if defined(CONFIG_SND_SMARTPA_AW8899)
+	{
+		.name = "ext_Speaker2_Multimedia",
+		.stream_name = MT_SOC_SPEAKER_STREAM_NAME,
+		.cpu_dai_name   = "snd-soc-dummy-dai",
+		.platform_name  = "snd-soc-dummy",
+#ifdef CONFIG_SND_SOC_MAX98926
+		.codec_dai_name = "max98926-aif1",
+		.codec_name = "MAX98926_MT",
+#elif defined(CONFIG_SND_SMARTPA_AW8899)
+        .codec_dai_name = "aw8899-aif",
+        .codec_name = "aw8899_smartpa",
+#elif defined(CONFIG_SND_SOC_CS35L35)
+		.codec_dai_name = "cs35l35-pcm",
+		.codec_name = "cs35l35.2-0040",
+		.ignore_suspend = 1,
+		.ignore_pmdown_time = true,
+		.dai_fmt = SND_SOC_DAIFMT_I2S |
+			   SND_SOC_DAIFMT_CBS_CFS |
+			   SND_SOC_DAIFMT_NB_NF,
+		.ops = &cs35l35_ops,
+#else
+		.codec_dai_name = "snd-soc-dummy-dai",
+		.codec_name = "snd-soc-dummy",
+#endif
+	},
+#endif
 	{
 		.name = "I2S1_AWB_CAPTURE",
 		.stream_name = MT_SOC_I2S2ADC2_STREAM_NAME,
@@ -740,12 +770,15 @@ static int mt_soc_snd_init(struct platform_device *pdev)
 	int ret;
 	int daiLinkNum = 0;
 
+#if defined(CONFIG_SND_SMARTPA_AW8898) || defined(CONFIG_SND_SMARTPA_AW8899)
+#else
 	ret = mtk_spk_update_dai_link(mt_soc_extspk_dai, pdev);
 	if (ret) {
 		dev_err(&pdev->dev, "%s(), mtk_spk_update_dai_link error\n",
 			__func__);
 		return -EINVAL;
 	}
+#endif
 
 	get_ext_dai_codec_name();
 	pr_debug("mt_soc_snd_init dai_link = %p\n", mt_snd_soc_card_mt.dai_link);

@@ -55,6 +55,10 @@
 #if CONFIG_MTK_GAUGE_VERSION == 30
 static struct charger_device *primary_charger;
 #endif
+#if CONFIG_USB_OTG_EN_PIN
+struct pinctrl *pinctrl_otg_en;
+struct pinctrl_state *otg_en_high, *otg_en_low;
+#endif
 #endif
 
 static struct wake_lock mtk_xhci_wakelock;
@@ -124,6 +128,12 @@ static void mtk_enable_otg_mode(void)
 	set_chr_enable_otg(0x1);
 	set_chr_boost_current_limit(1500);
 #endif
+#if CONFIG_USB_OTG_EN_PIN
+    if (!IS_ERR(otg_en_high)) {
+	  pinctrl_select_state(pinctrl_otg_en, otg_en_high);
+	  pr_debug("otg_en output high\n");
+    }
+#endif
 #endif
 }
 
@@ -163,6 +173,12 @@ static void mtk_disable_otg_mode(void)
 	enable_boost_polling(false);
 #else
 	set_chr_enable_otg(0x0);
+#endif
+#if CONFIG_USB_OTG_EN_PIN
+    if (!IS_ERR(otg_en_low)) {
+	  pinctrl_select_state(pinctrl_otg_en, otg_en_low);
+	  pr_debug("otg_en output low\n");
+    }
 #endif
 #endif
 }
@@ -259,6 +275,19 @@ static int usbotg_boost_manager_probe(struct platform_device *pdev)
 	info->otg_boost_workq = create_singlethread_workqueue("otg_boost_workq");
 	INIT_WORK(&info->kick_work, usbotg_boost_kick_work);
 	g_info = info;
+
+#if CONFIG_USB_OTG_EN_PIN
+    pinctrl_otg_en = devm_pinctrl_get(&pdev->dev);
+	otg_en_high = pinctrl_lookup_state(pinctrl_otg_en, "otg_en_high");
+    if (IS_ERR(otg_en_high)) {
+      dev_err(&pdev->dev, "Cannot find otg_en pinctrl otg_en_high!\n");
+    }
+	otg_en_low = pinctrl_lookup_state(pinctrl_otg_en, "otg_en_low");
+    if (IS_ERR(otg_en_high)) {
+      dev_err(&pdev->dev, "Cannot find otg_en pinctrl otg_en_low!\n");
+    }
+#endif
+
 	return 0;
 }
 

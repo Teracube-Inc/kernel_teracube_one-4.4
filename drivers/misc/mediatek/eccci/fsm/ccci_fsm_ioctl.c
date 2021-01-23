@@ -356,7 +356,7 @@ long ccci_fsm_ioctl(int md_id, unsigned int cmd, unsigned long arg)
 		/* add check whether the user call md start ioctl is valid */
 		if (strncmp(current->comm, VALID_USER, strlen(VALID_USER)) == 0) {
 			CCCI_NORMAL_LOG(md_id, FSM, "MD start ioctl called by %s\n", current->comm);
-			ret = fsm_append_command(ctl, CCCI_COMMAND_START, 0);
+			ret = fsm_append_command(ctl, CCCI_COMMAND_START, FSM_CMD_FLAG_WAIT_FOR_COMPLETE);
 		} else {
 			CCCI_ERROR_LOG(md_id, FSM, "drop invalid user:%s call MD start ioctl\n", current->comm);
 		}
@@ -368,8 +368,9 @@ long ccci_fsm_ioctl(int md_id, unsigned int cmd, unsigned long arg)
 		} else {
 			CCCI_NORMAL_LOG(md_id, FSM, "MD stop ioctl called by %s %d\n", current->comm, data);
 			ret = fsm_append_command(ctl, CCCI_COMMAND_STOP,
-					(data ? MD_FLIGHT_MODE_ENTER : MD_FLIGHT_MODE_NONE) == MD_FLIGHT_MODE_ENTER ?
-					FSM_CMD_FLAG_FLIGHT_MODE : 0);
+					FSM_CMD_FLAG_WAIT_FOR_COMPLETE |
+					((data ? MD_FLIGHT_MODE_ENTER : MD_FLIGHT_MODE_NONE) == MD_FLIGHT_MODE_ENTER ?
+					FSM_CMD_FLAG_FLIGHT_MODE : 0));
 		}
 		break;
 	case CCCI_IOC_ENTER_DEEP_FLIGHT:

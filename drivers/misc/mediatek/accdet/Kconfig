@@ -120,3 +120,19 @@ config TS3A225E_ACCDET
 	  If you want to use TS3A225E
 	  say Y here.
 	  If unsure, say N.
+
+config ACCDET_JACK_SWITCH
+	bool "MediaTek ACCDET jack switch"
+	---help---
+	  jack switch support for MediaTek SOC
+	  If you want to use jack switch
+	  say Y here.
+	  If unsure, say N.
+
+config MT6370_TYPEC_HEADSET
+	bool "MediaTek mt6370 type headset"
+	---help---
+      mt6370 or rt5081 headset option
+	  If you want to use MT6370
+	  say Y or M here.
+	  If unsure, say N.

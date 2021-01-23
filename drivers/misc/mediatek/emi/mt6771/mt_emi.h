@@ -20,7 +20,6 @@
 #define ENABLE_ELM	1
 #define ENABLE_MBW	0
 #define DECS_ON_SSPM
-#define MPU_BYPASS
 /* #define ENABLE_MPU_SLVERR */
 
 /* IRQ from device tree */

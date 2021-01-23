@@ -54,8 +54,12 @@ static int i2c_read(u8 a_u2Addr, u8 *a_puBuff)
 	int i4RetValue = 0;
 	char puReadCmd[1] = { (char)(a_u2Addr) };
 
+	g_pstAF_I2Cclient->addr = AF_I2C_SLAVE_ADDR;
+
+	g_pstAF_I2Cclient->addr = g_pstAF_I2Cclient->addr >> 1;
+
 	i4RetValue = i2c_master_send(g_pstAF_I2Cclient, puReadCmd, 1);
-	if (i4RetValue != 2) {
+	if (i4RetValue < 0) {
 		LOG_INF(" I2C write failed!!\n");
 		return -1;
 	}
@@ -80,7 +84,8 @@ static u8 read_data(u8 addr)
 
 static int s4DW9718SAF_ReadReg(unsigned short *a_pu2Result)
 {
-	*a_pu2Result = (read_data(0x02) << 8) + (read_data(0x03) & 0xff);
+    //*a_pu2Result = (read_data(0x02) << 8) + (read_data(0x03) & 0xff);
+    *a_pu2Result = ((read_data(0x42) & 0x3F) << 4) + ((read_data(0x43) & 0xFF) >> 4);
 
 	return 0;
 }
@@ -89,7 +94,8 @@ static int s4AF_WriteReg(u16 a_u2Data)
 {
 	int i4RetValue = 0;
 
-	char puSendCmd[3] = { 0x02, (char)(a_u2Data >> 8), (char)(a_u2Data & 0xFF) };
+    //char puSendCmd[3] = { 0x02, (char)(a_u2Data >> 8), (char)(a_u2Data & 0xFF) };
+    char puSendCmd[3] = { 0x42, (char)((a_u2Data >> 4) & 0x3F), (char)((a_u2Data << 4) & 0xFF) };
 
 	g_pstAF_I2Cclient->addr = AF_I2C_SLAVE_ADDR;
 
@@ -130,21 +136,66 @@ static inline int getAFInfo(__user struct stAF_MotorInfo *pstMotorInfo)
 static int initdrv(void)
 {
 	int i4RetValue = 0;
+/*by IAMDO(SNA), 180918
 #if defined(USE_ISRC_MODE_S5K3P8_SENSOR)
 	char puSendCmd2[2] = { 0x01, 0x39 };
 	char puSendCmd3[2] = { 0x05, 0x6f };
 #else
 	char puSendCmd2[2] = { 0x01, 0x39 };
 	char puSendCmd3[2] = { 0x05, 0x07 };
-#endif
+#endif*/
+    char puSendCmd2[2]  = { 0x40, 0x00 };       //addr:0x40 0x00
+	char puSendCmd3[3]  = { 0x45, 0x00, 0x80 }; //addr:0x45 0x00, addr:0x46 0x80
+    char puSendCmd4[3]  = { 0x47, 0x00, 0x05 }; //addr:0x47 0x00, addr:0x48 0x05
+    char puSendCmd5[3]  = { 0x49, 0x02, 0x6C }; //addr:0x49 0x02, addr:0x4A 0x6C
+    char puSendCmd6[3]  = { 0x4B, 0x00, 0x00 }; //addr:0x4B 0x00, addr:0x4C 0x00
+    char puSendCmd7[3]  = { 0x4F, 0x02, 0x06 }; //addr:0x4F 0x02, addr:0x50 0x06
+    char puSendCmd8[3]  = { 0x51, 0x00, 0x04 }; //addr:0x51 0x00, addr:0x52 0x04
+    char puSendCmd9[3]  = { 0x53, 0x00, 0xF0 }; //addr:0x53 0x00, addr:0x54 0xF0
+    char puSendCmd10[3] = { 0x55, 0x00, 0x14 }; //addr:0x55 0x00, addr:0x56 0x14
 
-	i4RetValue = i2c_master_send(g_pstAF_I2Cclient, puSendCmd2, 2);
+	g_pstAF_I2Cclient->addr = AF_I2C_SLAVE_ADDR;
+
+	g_pstAF_I2Cclient->addr = g_pstAF_I2Cclient->addr >> 1;
+
+	//i4RetValue = i2c_master_send(g_pstAF_I2Cclient, puSendCmd2, 2);
+    i4RetValue = i2c_master_send(g_pstAF_I2Cclient, puSendCmd2, 2);
 
 	if (i4RetValue < 0)
 		return -1;
 
-	i4RetValue = i2c_master_send(g_pstAF_I2Cclient, puSendCmd3, 2);
-
+	//i4RetValue = i2c_master_send(g_pstAF_I2Cclient, puSendCmd3, 2);
+    i4RetValue = i2c_master_send(g_pstAF_I2Cclient, puSendCmd3, 3);
+    //add by IAMDO(SNA), 180918
+    if (i4RetValue < 0)
+		return -1;
+    
+    i4RetValue = i2c_master_send(g_pstAF_I2Cclient, puSendCmd4, 3);
+    if (i4RetValue < 0)
+		return -1;
+    
+    i4RetValue = i2c_master_send(g_pstAF_I2Cclient, puSendCmd5, 3);
+    if (i4RetValue < 0)
+		return -1;
+    
+    i4RetValue = i2c_master_send(g_pstAF_I2Cclient, puSendCmd6, 3);
+    if (i4RetValue < 0)
+		return -1;
+    
+    i4RetValue = i2c_master_send(g_pstAF_I2Cclient, puSendCmd7, 3);
+    if (i4RetValue < 0)
+		return -1;
+    
+    i4RetValue = i2c_master_send(g_pstAF_I2Cclient, puSendCmd8, 3);
+    if (i4RetValue < 0)
+		return -1;
+    
+    i4RetValue = i2c_master_send(g_pstAF_I2Cclient, puSendCmd9, 3);
+    if (i4RetValue < 0)
+		return -1;
+    
+    i4RetValue = i2c_master_send(g_pstAF_I2Cclient, puSendCmd10, 3);
+    
 	return i4RetValue;
 }
 
@@ -163,7 +214,7 @@ static inline int moveAF(unsigned long a_u4Position)
 
 		ret = s4DW9718SAF_ReadReg(&InitPos);
 
-		if (initdrv() == 0) {
+		if (initdrv() > 0 ) {
 			spin_lock(g_pAF_SpinLock);
 			*g_pAF_Opened = 2;
 			spin_unlock(g_pAF_SpinLock);
@@ -185,6 +236,9 @@ static inline int moveAF(unsigned long a_u4Position)
 		}
 	}
 
+      if(a_u4Position == 0)
+      a_u4Position = 300;
+
 	if (g_u4CurrPosition == a_u4Position)
 		return 0;
 
@@ -192,7 +246,7 @@ static inline int moveAF(unsigned long a_u4Position)
 	g_u4TargetPosition = a_u4Position;
 	spin_unlock(g_pAF_SpinLock);
 
-	/* LOG_INF("move [curr] %d [target] %d\n", g_u4CurrPosition, g_u4TargetPosition); */
+	 LOG_INF("move [curr] %d [target] %d\n", g_u4CurrPosition, g_u4TargetPosition);
 
 
 	if (s4AF_WriteReg((unsigned short)g_u4TargetPosition) == 0) {

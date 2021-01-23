@@ -230,9 +230,10 @@ static int otg_iddig_probe(struct platform_device *pdev)
 #endif
 
 	mtk_idpin_irqnum = irq_of_parse_and_map(node, 0);
+
 	if (mtk_idpin_irqnum < 0)
 		return -ENODEV;
-
+/* Stoneoim:zhangxinyu on: Mon, 25 Nov 2019 20:25:43 +0800
 	pinctrl = devm_pinctrl_get(dev);
 	if (IS_ERR(pinctrl)) {
 		dev_err(&pdev->dev, "Cannot find usb pinctrl!\n");
@@ -245,7 +246,8 @@ static int otg_iddig_probe(struct platform_device *pdev)
 	else
 		pinctrl_select_state(pinctrl, pinctrl_iddig_init);
 
-
+ */
+// End of Stoneoim:zhangxinyu
 #ifdef CONFIG_USB_MTK_OTG_SWITCH
 	pinctrl_iddig_enable = pinctrl_lookup_state(pinctrl, "iddig_enable");
 	pinctrl_iddig_disable = pinctrl_lookup_state(pinctrl, "iddig_disable");

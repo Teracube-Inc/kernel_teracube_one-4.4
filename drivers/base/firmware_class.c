@@ -277,6 +277,13 @@ static void fw_free_buf(struct firmware_buf *buf)
 static char fw_path_para[256];
 static const char * const fw_path[] = {
 	fw_path_para,
+/* Stoneoim:zhangqingzhan on: Fri, 01 Dec 2017 15:31:58 +0800
+ * for aw87319 audio pa
+ */
+#if defined(CONFIG_SND_SOC_AW87319) || defined(CONFIG_SND_SOC_AW8898) || defined(CONFIG_SND_SOC_AW8899)
+    "/system/vendor/firmware",
+#endif
+// End of Stoneoim: zhangqingzhan
 	"/lib/firmware/updates/" UTS_RELEASE,
 	"/lib/firmware/updates",
 	"/lib/firmware/" UTS_RELEASE,

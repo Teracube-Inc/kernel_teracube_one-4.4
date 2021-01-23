@@ -860,54 +860,45 @@ static int ccu_release(struct inode *inode, struct file *flip)
 static int ccu_mmap(struct file *flip, struct vm_area_struct *vma)
 {
 	unsigned long length = 0;
-	unsigned long pfn = 0x0;
+	unsigned int pfn = 0x0;
 
 	length = (vma->vm_end - vma->vm_start);
 	/*  */
 	vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
 	pfn = vma->vm_pgoff << PAGE_SHIFT;
 
-	LOG_DBG("CCU_mmap: vm_pgoff(0x%lx),pfn(0x%lx),phy(0x%lx),",
-		vma->vm_pgoff, pfn, vma->vm_pgoff << PAGE_SHIFT);
-	LOG_DBG("vm_start(0x%lx),vm_end(0x%lx),length(0x%lx)\n",
-	    vma->vm_start, vma->vm_end, length);
+	LOG_DBG
+	    ("CCU_mmap: vm_pgoff(0x%lx),pfn(0x%x),phy(0x%lx),vm_start(0x%lx),vm_end(0x%lx),length(0x%lx)\n",
+	     vma->vm_pgoff, pfn, vma->vm_pgoff << PAGE_SHIFT, vma->vm_start, vma->vm_end, length);
 
 	/*if (pfn >= CCU_REG_BASE_HW) {*/
 
 		if (pfn == (g_ccu_platform_info.ccu_hw_base - g_ccu_platform_info.ccu_hw_offset)) {
 			if (length > CCU_REG_RANGE) {
-				LOG_ERR("mmap range error :module(0x%lx),",
-					pfn);
 				LOG_ERR
-				("length(0x%lx),CCU_A_BASE_HW(0x%x)!\n",
-				    length, 0x4000);
+				    ("mmap range error :module(0x%x),length(0x%lx),CCU_A_BASE_HW(0x%x)!\n",
+				     pfn, length, 0x4000);
 				return -EAGAIN;
 			}
 		} else if (pfn == g_ccu_platform_info.ccu_camsys_base) {
 			if (length > g_ccu_platform_info.ccu_camsys_size) {
-				LOG_ERR("mmap range error :module(0x%lx),",
-					pfn);
 				LOG_ERR
-				("length(0x%lx),CCU_CAMSYS_BASE_HW(0x%x)!\n",
-				    length, 0x4000);
+				    ("mmap range error :module(0x%x),length(0x%lx),CCU_CAMSYS_BASE_HW(0x%x)!\n",
+				     pfn, length, 0x4000);
 				return -EAGAIN;
 			}
 		} else if (pfn == g_ccu_platform_info.ccu_pmem_base) {
 			if (length > g_ccu_platform_info.ccu_pmem_size) {
-				LOG_ERR("mmap range error :module(0x%lx),",
-					pfn);
 				LOG_ERR
-				("length(0x%lx),CCU_PMEM_BASE_HW(0x%x)!\n",
-				    length, 0x4000);
+				    ("mmap range error :module(0x%x),length(0x%lx),CCU_PMEM_BASE_HW(0x%x)!\n",
+				     pfn, length, 0x4000);
 				return -EAGAIN;
 			}
 		} else if (pfn == g_ccu_platform_info.ccu_dmem_base) {
 			if (length > g_ccu_platform_info.ccu_dmem_size) {
-				LOG_ERR("mmap range error :module(0x%lx),",
-					pfn);
 				LOG_ERR
-				("length(0x%lx),CCU_PMEM_BASE_HW(0x%x)!\n",
-				    pfn, length, 0x4000);
+				    ("mmap range error :module(0x%x),length(0x%lx),CCU_PMEM_BASE_HW(0x%x)!\n",
+				     pfn, length, 0x4000);
 				return -EAGAIN;
 			}
 		} else {

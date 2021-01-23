@@ -315,24 +315,23 @@ static void alspshub_init_done_work(struct work_struct *work)
 
 static int ps_recv_data(struct data_unit_t *event, void *reserved)
 {
-	int err = 0;
 	struct alspshub_ipi_data *obj = obj_ipi_data;
 
 	if (!obj)
-		return 0;
+		return -1;
 
 	if (event->flush_action == FLUSH_ACTION)
-		err = ps_flush_report();
+		ps_flush_report();
 	else if (event->flush_action == DATA_ACTION) {
-		err = ps_data_report(event->proximity_t.oneshot, SENSOR_STATUS_ACCURACY_HIGH);
+		ps_data_report(event->proximity_t.oneshot, SENSOR_STATUS_ACCURACY_HIGH);
 	} else if (event->flush_action == CALI_ACTION) {
 		spin_lock(&calibration_lock);
 		atomic_set(&obj->ps_thd_val_high, event->data[0]);
 		atomic_set(&obj->ps_thd_val_low, event->data[1]);
 		spin_unlock(&calibration_lock);
-		err = ps_cali_report(event->data);
+		ps_cali_report(event->data);
 	}
-	return err;
+	return 0;
 }
 static int als_recv_data(struct data_unit_t *event, void *reserved)
 {
@@ -359,13 +358,11 @@ static int als_recv_data(struct data_unit_t *event, void *reserved)
 
 static int rgbw_recv_data(struct data_unit_t *event, void *reserved)
 {
-	int err = 0;
-
 	if (event->flush_action == FLUSH_ACTION)
-		err = rgbw_flush_report();
+		rgbw_flush_report();
 	else if (event->flush_action == DATA_ACTION)
-		err = rgbw_data_report(event->data);
-	return err;
+		rgbw_data_report(event->data);
+	return 0;
 }
 
 static int alshub_factory_enable_sensor(bool enable_disable, int64_t sample_periods_ms)

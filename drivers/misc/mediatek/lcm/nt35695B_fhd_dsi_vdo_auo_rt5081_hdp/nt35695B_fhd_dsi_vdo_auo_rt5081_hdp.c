@@ -86,7 +86,7 @@ static LCM_UTIL_FUNCS lcm_util;
 static const unsigned char LCD_MODULE_ID = 0x01;
 #define LCM_DSI_CMD_MODE									0
 #define FRAME_WIDTH										(720)
-#define FRAME_HEIGHT									(1440)
+#define FRAME_HEIGHT									(1520)
 #define VIRTUAL_WIDTH									(1080)
 #define VIRTUAL_HEIGHT								(1920)
 

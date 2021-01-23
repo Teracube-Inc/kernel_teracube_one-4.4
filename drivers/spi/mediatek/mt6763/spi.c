@@ -52,6 +52,16 @@
 #define SPI_TRUSTONIC_TEE_SUPPORT
 #endif
 
+#ifdef CONFIG_TRUSTKERNEL_TEE_FP_SUPPORT
+#define SPI_TRUSTKERNEL_TEE_SUPPORT
+#endif
+
+#ifdef SPI_TRUSTKERNEL_TEE_SUPPORT
+#include <tee_clkmgr.h>
+#include <tee_fp.h>
+#include <tee_kernel_lowlevel_api.h>
+#endif
+
 #ifdef SPI_TRUSTONIC_TEE_SUPPORT
 #include <mobicore_driver_api.h>
 #include <tlspi_Api.h>
@@ -1669,6 +1679,10 @@ static int mt_spi_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "spi_register_master fails.\n");
 		goto out_free;
 	} else {
+#ifdef SPI_TRUSTKERNEL_TEE_SUPPORT
+		tee_clkmgr_register1("spi", master->bus_num,
+			enable_clk, disable_clk, ms);
+#endif
 		SPI_DBG("spi register master success.\n");
 		/* reg_val = spi_readl ( ms, SPI_CMD_REG ); */
 		/* reg_val &= SPI_CMD_RST_MASK; */

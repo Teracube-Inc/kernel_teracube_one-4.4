@@ -21,11 +21,8 @@
 
 #include "inc/mt6370_pmu.h"
 #include "inc/mt6370_pmu_fled.h"
-#include "inc/mt6370_pmu_charger.h"
 
-#define MT6370_PMU_FLED_DRV_VERSION	"1.0.3_MTK"
-
-static DEFINE_MUTEX(fled_lock);
+#define MT6370_PMU_FLED_DRV_VERSION	"1.0.2_MTK"
 
 static u8 mt6370_fled_inited;
 static u8 mt6370_global_mode = FLASHLIGHT_MODE_OFF;
@@ -51,29 +48,6 @@ struct mt6370_pmu_fled_data {
 	unsigned char fled_strb_to_reg;
 	unsigned char fled_cs_mask;
 };
-
-static const char *flashlight_mode_str[FLASHLIGHT_MODE_MAX] = {
-	"off", "torch", "flash", "mixed",
-	"dual flash", "dual torch", "dual off",
-};
-
-static inline int mt6370_pmu_reg_test_bit(
-	struct mt6370_pmu_chip *chip, u8 cmd, u8 shift, bool *is_one)
-{
-	int ret = 0;
-	u8 data = 0;
-
-	ret = mt6370_pmu_reg_read(chip, cmd);
-	if (ret < 0) {
-		*is_one = false;
-		return ret;
-	}
-
-	data = ret & (1 << shift);
-	*is_one = (data == 0 ? false : true);
-
-	return ret;
-}
 
 static irqreturn_t mt6370_pmu_fled_strbpin_irq_handler(int irq, void *data)
 {
@@ -308,33 +282,7 @@ static int mt6370_fled_set_mode(struct rt_fled_dev *info,
 {
 	struct mt6370_pmu_fled_data *fi = (struct mt6370_pmu_fled_data *)info;
 	int ret = 0;
-	u8 val, mask;
-	bool hz_en = false, cfo_en = true;
 
-	switch (mode) {
-	case FLASHLIGHT_MODE_FLASH:
-	case FLASHLIGHT_MODE_DUAL_FLASH:
-		ret = mt6370_pmu_reg_test_bit(fi->chip, MT6370_PMU_REG_CHGCTRL1,
-				MT6370_SHIFT_HZ_EN, &hz_en);
-		if (ret >= 0 && hz_en) {
-			dev_err(fi->dev, "%s WARNING\n", __func__);
-			dev_err(fi->dev, "%s set %s mode with HZ=1\n",
-					 __func__, flashlight_mode_str[mode]);
-		}
-
-		ret = mt6370_pmu_reg_test_bit(fi->chip, MT6370_PMU_REG_CHGCTRL2,
-				MT6370_SHIFT_CFO_EN, &cfo_en);
-		if (ret >= 0 && !cfo_en) {
-			dev_err(fi->dev, "%s WARNING\n", __func__);
-			dev_err(fi->dev, "%s set %s mode with CFO=0\n",
-					 __func__, flashlight_mode_str[mode]);
-		}
-		break;
-	default:
-		break;
-	}
-
-	mutex_lock(&fled_lock);
 	switch (mode) {
 	case FLASHLIGHT_MODE_TORCH:
 		if (mt6370_global_mode == FLASHLIGHT_MODE_FLASH)
@@ -382,71 +330,9 @@ static int mt6370_fled_set_mode(struct rt_fled_dev *info,
 		if (mt6370_fled_on == 0)
 			mt6370_global_mode = mode;
 		break;
-	case FLASHLIGHT_MODE_DUAL_FLASH:
-		if (fi->id == MT6370_FLED2)
-			goto out;
-		/* strobe off */
-		ret = mt6370_pmu_reg_clr_bit(fi->chip, MT6370_PMU_REG_FLEDEN,
-					     MT6370_STROBE_EN_MASK);
-		if (ret < 0)
-			break;
-		udelay(400);
-		/* fled en/strobe on */
-		val = BIT(MT6370_FLED1) | BIT(MT6370_FLED2) |
-			MT6370_STROBE_EN_MASK;
-		mask = val;
-		ret = mt6370_pmu_reg_update_bits(fi->chip,
-						 MT6370_PMU_REG_FLEDEN,
-						 mask, val);
-		if (ret < 0)
-			break;
-		mt6370_global_mode = mode;
-		mt6370_fled_on |= (BIT(MT6370_FLED1) | BIT(MT6370_FLED2));
-		break;
-	case FLASHLIGHT_MODE_DUAL_TORCH:
-		if (fi->id == MT6370_FLED2)
-			goto out;
-		if (mt6370_global_mode == FLASHLIGHT_MODE_FLASH ||
-		    mt6370_global_mode == FLASHLIGHT_MODE_DUAL_FLASH)
-			goto out;
-		/* Fled en/Strobe off/Torch on */
-		ret = mt6370_pmu_reg_clr_bit(fi->chip, MT6370_PMU_REG_FLEDEN,
-					     MT6370_STROBE_EN_MASK);
-		if (ret < 0)
-			break;
-		udelay(500);
-		val = BIT(MT6370_FLED1) | BIT(MT6370_FLED2) |
-			MT6370_TORCH_EN_MASK;
-		ret = mt6370_pmu_reg_set_bit(fi->chip,
-					     MT6370_PMU_REG_FLEDEN, val);
-		if (ret < 0)
-			break;
-		udelay(500);
-		mt6370_global_mode = mode;
-		mt6370_fled_on |= (BIT(MT6370_FLED1) | BIT(MT6370_FLED2));
-		break;
-	case FLASHLIGHT_MODE_DUAL_OFF:
-		if (fi->id == MT6370_FLED2)
-			goto out;
-		ret = mt6370_pmu_reg_clr_bit(fi->chip, MT6370_PMU_REG_FLEDEN,
-					 BIT(MT6370_FLED1) | BIT(MT6370_FLED2));
-		if (ret < 0)
-			break;
-		mt6370_fled_on = 0;
-		mt6370_global_mode = FLASHLIGHT_MODE_OFF;
-		break;
 	default:
-		mutex_unlock(&fled_lock);
 		return -EINVAL;
 	}
-	if (ret < 0)
-		dev_info(fi->dev, "%s set %s mode fail\n", __func__,
-			 flashlight_mode_str[mode]);
-	else
-		dev_info(fi->dev, "%s set %s\n", __func__,
-			 flashlight_mode_str[mode]);
-out:
-	mutex_unlock(&fled_lock);
 	return ret;
 }
 
@@ -840,9 +726,6 @@ MODULE_VERSION(MT6370_PMU_FLED_DRV_VERSION);
 
 /*
  * Version Note
- * 1.0.3_MTK
- * (1) Print warnings when strobe mode with HZ=1 or CFO=0
- *
  * 1.0.2_MTK
  * (1) Add delay for strobe on/off
  *

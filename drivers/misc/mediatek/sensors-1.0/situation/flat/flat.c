@@ -101,15 +101,13 @@ static int flat_batch(int flag, int64_t samplingPeriodNs, int64_t maxBatchReport
 
 static int flat_recv_data(struct data_unit_t *event, void *reserved)
 {
-	int err = 0;
-
 	if (event->flush_action == FLUSH_ACTION)
 		FLAT_PR_ERR("flat do not support flush\n");
 	else if (event->flush_action == DATA_ACTION) {
 		__pm_wakeup_event(&flat_wake_lock, msecs_to_jiffies(100));
-		err = situation_notify(ID_FLAT);
+		situation_notify(ID_FLAT);
 	}
-	return err;
+	return 0;
 }
 
 static int flat_local_init(void)

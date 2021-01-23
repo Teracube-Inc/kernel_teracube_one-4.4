@@ -113,6 +113,11 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 		compatible = "microtrust,tester-v1";
 	};
 
+	tkcore {
+		compatible = "trustkernel,tkcore";
+		interrupts = <GIC_SPI 296 IRQ_TYPE_EDGE_RISING>;
+	};
+
 	cpus {
 		#address-cells = <1>;
 		#size-cells = <0>;

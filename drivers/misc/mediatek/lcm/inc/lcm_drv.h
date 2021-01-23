@@ -14,9 +14,15 @@
 #ifndef __LCM_DRV_H__
 #define __LCM_DRV_H__
 
+/* Stoneoim:hanshengpeng on: Mon, 04 Dec 2017 17:41:45 +0800
+ * for build lk lcm
+ */
+#ifndef BUILD_LK
 #include <linux/device.h>
 #include <linux/platform_device.h>
 #include <linux/regulator/consumer.h>
+#endif
+// End of Stoneoim:hanshengpeng
 
 #ifndef ARY_SIZE
 #define ARY_SIZE(x) (sizeof((x)) / sizeof((x[0])))
@@ -812,6 +818,7 @@ typedef struct {
 	unsigned int (*dsi_dcs_read_lcm_reg)(unsigned char cmd);
 	unsigned int (*dsi_dcs_read_lcm_reg_v2)(unsigned char cmd, unsigned char *buffer,
 						 unsigned char buffer_size);
+	unsigned int (*dsi_dcs_read_lcm_reg_v2_parade)(unsigned char cmd0,unsigned char cmd1,unsigned char *buffer, unsigned char buffer_size);
 	void (*wait_transfer_done)(void);
 
 	/*   FIXME: GPIO mode should not be configured in lcm driver*/

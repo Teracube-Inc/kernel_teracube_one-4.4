@@ -194,6 +194,11 @@ struct charger_custom_data {
 	int apple_2_1a_charger_current;
 	int ta_ac_charger_current;
 	int pd_charger_current;
+/* Foeec:zhangqingzhan on: Fri, 13 Mar 2020 15:08:46 +0800
+ * for wireless charger
+ */
+	int wpc_charger_current;
+// End of Foeec: zhangqingzhan
 
 	/* sw jeita */
 	int jeita_temp_above_t4_cv_voltage;

@@ -18,7 +18,7 @@ obj-$(CONFIG_MTK_FLASHLIGHT_HA7109)      += flashlights-ha7109.o
 obj-$(CONFIG_MTK_FLASHLIGHT_RT4509)      += flashlights-rt4509.o
 obj-$(CONFIG_MTK_FLASHLIGHT_DUMMY)       += flashlights-dummy.o
 obj-$(CONFIG_MTK_FLASHLIGHT_DUMMY_GPIO)  += flashlights-dummy-gpio.o
-
+obj-$(CONFIG_MTK_SUB_FLASHLIGHT_DUMMY_GPIO)   += sub-flashlights-dummy-gpio.o
 ccflags-$(CONFIG_MTK_FLASHLIGHT_DEBUG)     := -DDEBUG
 ccflags-$(CONFIG_MTK_FLASHLIGHT_PT)        += -DCONFIG_MTK_FLASHLIGHT_PT
 ccflags-$(CONFIG_MTK_FLASHLIGHT_PT_STRICT) += -DCONFIG_MTK_FLASHLIGHT_PT_STRICT

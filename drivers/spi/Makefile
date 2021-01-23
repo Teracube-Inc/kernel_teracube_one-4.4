@@ -8,6 +8,12 @@ ifeq ($(CONFIG_TRUSTONIC_TEE_SUPPORT),y)
 	subdir-ccflags-y += -I$(srctree)/drivers/spi/trustzone/spi/Tlspi/inc
 	subdir-ccflags-y += -I$(srctree)/drivers/spi/trustzone/spi/drspi/public
 endif
+
+# Stoneoim:zhangxinyu on: Wed, 26 Sep 2018 10:47:31 +0800
+ifeq ($(CONFIG_TRUSTKERNEL_TEE_FP_SUPPORT),y)
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/tkcore/include
+endif
+# End of Stoneoim:zhangxinyu
 subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/base/power/$(MTK_PLATFORM)
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat/
 # small core, mostly translating board-specific

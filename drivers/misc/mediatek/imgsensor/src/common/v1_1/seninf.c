@@ -211,9 +211,6 @@ static long seninf_ioctl(struct file *pfile, unsigned int cmd, unsigned long arg
 				goto SENINF_IOCTL_EXIT;
 			}
 		}
-	} else {
-		ret = -EFAULT;
-		goto SENINF_IOCTL_EXIT;
 	}
 
 	switch (cmd) {

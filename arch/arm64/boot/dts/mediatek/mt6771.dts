@@ -212,6 +212,11 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 		};
 	};
 
+        tkcore {
+                compatible = "trustkernel,tkcore";
+                interrupts = <GIC_SPI 111 IRQ_TYPE_EDGE_RISING>;
+        };
+
 	psci {
 		compatible      = "arm,psci-1.0";
 		method          = "smc";
@@ -295,6 +300,18 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 			size = <0 0xffc00000>;
 			alignment = <0 0x10000000>;
 			alloc-ranges = <0 0xc0000000 1 0x80000000>;
+		};
+		pstore-reserved-memory@54410000 {
+			compatible = "mediatek,pstore";
+			reg = <0 0x54410000 0 0xe0000>;
+		};
+		ram_console-reserved-memory@54400000 {
+			compatible = "mediatek,ram_console";
+			reg = <0 0x54400000 0 0x10000>;
+		};
+		minirdump-reserved-memory@544f0000{
+			compatible = "mediatek,minirdump";
+			reg = <0 0x544f0000 0 0x10000>;
 		};
 
 		/*TODO: add reserved memory node here*/
@@ -1650,6 +1667,13 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 			 <&topckgen TOP_MUX_SPI>,
 			 <&infracfg_ao INFRACFG_AO_SPI0_CG>;
 		clock-names = "parent-clk", "sel-clk", "spi-clk";
+/*		spidev@0{
+			compatible = "rohm,dh2228fv";
+			#address-cells = <1>;
+			#size-cells = <1>;
+			reg = <0x0>;
+			spi-max-frequency = <5000000>;
+		};*/
 	};
 
 	spi1: spi@11010000 {
@@ -3043,6 +3067,9 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 		};
 
 	};
+    scanner_driver: scanner_driver {
+         compatible = "mediatek,scanner_driver";
+    };
 
 	ccu@1a0a0000 {
 		compatible = "mediatek,ccu";
@@ -3956,6 +3983,65 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 		compatible = "mediatek,mt_soc_pcm_vow_barge_in";
 	};
 
+	firmware {
+		android {
+			compatible = "android,firmware";
+			fstab {
+				compatible = "android,fstab";
+#if !defined(CONFIG_SYSTEM_AS_ROOT) && !defined(CONFIG_MTK_AB_OTA_UPDATER)
+				system {
+					compatible = "android,system";
+					dev = "/dev/block/platform/bootdevice/by-name/system";
+					type = "ext4";
+					mnt_flags = "ro";
+					#ifndef CONFIG_MTK_DM_VERITY_OFF
+					fsmgr_flags = "wait,verify";
+					#else
+					fsmgr_flags = "wait";
+					#endif
+				};
+#endif
+#ifndef CONFIG_MTK_LATE_MOUNT
+				vendor {
+					compatible = "android,vendor";
+					dev = "/dev/block/platform/bootdevice/by-name/vendor";
+					type = "ext4";
+					mnt_flags = "ro";
+#ifndef CONFIG_MTK_AB_OTA_UPDATER
+					#ifndef CONFIG_MTK_DM_VERITY_OFF
+					fsmgr_flags = "wait,verify";
+					#else
+					fsmgr_flags = "wait";
+					#endif
+#else
+					#ifndef CONFIG_MTK_DM_VERITY_OFF
+					fsmgr_flags = "wait,slotselect,verify";
+					#else
+					fsmgr_flags = "wait,slotselect";
+					#endif
+#endif
+				};
+#endif
+#ifdef CONFIG_TARGET_COPY_OUT_ODM
+				odm {
+					compatible = "android,odm";
+					dev = "/dev/block/platform/bootdevice/by-name/odm";
+					type = "ext4";
+					mnt_flags = "ro";
+#ifndef CONFIG_MTK_AB_OTA_UPDATER
+					fsmgr_flags = "wait";
+#else
+					#ifndef CONFIG_MTK_DM_VERITY_OFF
+					fsmgr_flags = "wait,slotselect,verify";
+					#else
+					fsmgr_flags = "wait,slotselect";
+					#endif
+#endif
+				};
+#endif
+			};
+		};
+	};
 	odm: odm{
 		compatible = "simple-bus";
 		/* reserved for overlay by odm */
@@ -3985,17 +4071,16 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 
 	lk_charger: lk_charger {
 		compatible = "mediatek,lk_charger";
-		enable_pe_plus;
 		power_path_support;
 		max_charger_voltage = <6500000>;
 		fast_charge_voltage = <3000000>;
 
 		/* charging current */
 		usb_charger_current = <500000>;
-		ac_charger_current = <2050000>;
-		ac_charger_input_current = <3200000>;
-		non_std_ac_charger_current = <500000>;
-		charging_host_charger_current = <1500000>;
+		ac_charger_current = <2550000>;
+		ac_charger_input_current = <2550000>;
+		non_std_ac_charger_current = <2550000>;
+		charging_host_charger_current = <2550000>;
 		ta_ac_charger_current = <3000000>;
 		pd_charger_current = <500000>;
 
@@ -4009,15 +4094,11 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 		compatible = "mediatek,charger";
 		algorithm_name = "SwitchCharging";
 		/* enable_sw_jeita; */
-		enable_pe_plus;
-		enable_pe_2;
-		enable_pe_3;
-		enable_pe_4;
 		enable_type_c;
 		power_path_support;
 
 		/* common */
-		battery_cv = <4350000>;
+		battery_cv = <4400000>;
 		max_charger_voltage = <6500000>;
 		min_charger_voltage = <4600000>;
 
@@ -4026,12 +4107,12 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 		usb_charger_current_unconfigured = <70000>;
 		usb_charger_current_configured = <500000>;
 		usb_charger_current = <500000>;
-		ac_charger_current = <2050000>;
-		ac_charger_input_current = <3200000>;
-		non_std_ac_charger_current = <500000>;
-		charging_host_charger_current = <1500000>;
-		apple_1_0a_charger_current = <650000>;
-		apple_2_1a_charger_current = <800000>;
+		ac_charger_current = <2550000>;
+		ac_charger_input_current = <2550000>;
+		non_std_ac_charger_current = <2550000>;
+		charging_host_charger_current = <2550000>;
+		apple_1_0a_charger_current = <950000>;
+		apple_2_1a_charger_current = <2050000>;
 		ta_ac_charger_current = <3000000>;
 
 		/* sw jeita */
@@ -4057,8 +4138,8 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 		enable_min_charge_temperature;
 		min_charge_temperature = <0>;
 		min_charge_temperature_plus_x_degree = <6>;
-		max_charge_temperature = <50>;
-		max_charge_temperature_minus_x_degree = <47>;
+		max_charge_temperature = <55>;
+		max_charge_temperature_minus_x_degree = <52>;
 
 		/* PE 2.0 */
 		pe20_ichg_level_threshold = <1000>;
@@ -4100,8 +4181,15 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 	subpmic_pmu_eint: mt6370_pmu_eint {
 	};
 
-	goodix_fp: fingerprint {
-		compatible = "mediatek,goodix-fp";
+        goodix_fp: fingerprint@ {
+                compatible = "mediatek,goodix-fp";
+        };
+	fpc_finger:fpc_finger {
+		compatible = "mediatek,fpc_finger";
+	};
+
+	fingerprint: fingerprint {
+		compatible = "mediatek, fingerprint-eint";
 	};
 
 	tcpc_pd: mt6370_pd_eint {
@@ -4158,20 +4246,53 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 	otg_iddig: otg_iddig {
 		compatible = "mediatek,usb_iddig_bi_eint";
 	};
+
+	usb_boost_manager: usb_boost_manager {
+		compatible = "mediatek,usb_boost_manager";
+		boost_period = <30>;
+	};
+
 	/* NFC start */
 	nfc:nfc {
 		compatible = "mediatek,nfc-gpio-v2";
-		gpio-rst = <19>;
-		gpio-rst-std = <&pio 19 0x0>;
-		gpio-irq = <20>;
-		gpio-irq-std = <&pio 20 0x0>;
+		gpio-rst = <69>;
+		gpio-rst-std = <&pio 69 0x0>;
+		gpio-irq = <70>;
+		gpio-irq-std = <&pio 70 0x0>;
 	};
 
 	irq_nfc: irq_nfc {
 		compatible = "mediatek,irq_nfc-eint";
 	};
 	/* NFC end */
-
+	/* WK2132 start */
+/*
+	wk2xxx_i2c:wk2xxx_i2c{
+		compatible = "mediatek,wk2xxx_i2c";
+		gpio-ls = <55>;
+		gpio-ls-std = <&pio 55 0x0>;
+		gpio-power = <57>;
+		gpio-power-std = <&pio 57 0x0>;
+		gpio-rst = <78>;
+		gpio-rst-std = <&pio 78 0x0>;
+		gpio-irq = <56>;
+		gpio-irq-std = <&pio 56 0x0>;
+	};
+*/
+	irq_wk2xxx:irq_wk2xxx {
+		compatible = "mediatek,irq_wk2xxx-eint";
+	};
+	/* WK2132 end*/
+    psam: psam {
+        compatible = "mediatek,psam_driver";
+		gpio-rst-std = <&pio 79 0x0>;
+		gpio-pws-std = <&pio 80 0x0>;
+		gpio-power-std = <&pio 169 0x0>;
+		gpio-irq-std = <&pio 13 0x0>;
+    };
+	irq_psam:irq_psam {
+		compatible = "mediatek,psam-eint";
+	};
 	smart_pa: smart_pa {
 	};
 

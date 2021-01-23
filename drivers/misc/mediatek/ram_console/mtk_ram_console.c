@@ -606,8 +606,8 @@ static void *remap_lowmem(phys_addr_t start, phys_addr_t size)
 #endif
 
 struct mem_desc_t {
-	unsigned int start;
-	unsigned int size;
+	unsigned long start;
+	unsigned long size;
 };
 
 #if defined(CONFIG_MTK_RAM_CONSOLE_USING_SRAM)
@@ -621,7 +621,7 @@ static int __init dt_get_ram_console(unsigned long node, const char *uname, int 
 
 	sram = (struct mem_desc_t *) of_get_flat_dt_prop(node, "ram_console", NULL);
 	if (sram) {
-		pr_notice("ram_console:[DT] 0x%x@0x%x\n", sram->size, sram->start);
+		pr_notice("ram_console:[DT] 0x%lx@0x%lx\n", sram->size, sram->start);
 		*(struct mem_desc_t *) data = *sram;
 	}
 
@@ -644,19 +644,11 @@ static int __init ram_console_early_init(void)
 			sram.size = CONFIG_MTK_RAM_CONSOLE_SIZE;
 		}
 		bufp = ioremap_wc(sram.start, sram.size);
-		/* unsigned long conversion:
-		 * make size equals to pointer size
-		 * to avoid build error as below for aarch64 case
-		 * (error: cast to 'struct ram_console_buffer *' from
-		 * smaller integer type 'unsigned int'
-		 * [-Werror,-Wint-to-pointer-cast])
-		 */
-		ram_console_buffer_pa =
-			(struct ram_console_buffer *)(unsigned long)sram.start;
+		ram_console_buffer_pa = (struct ram_console_buffer *)sram.start;
 		if (bufp)
 			buffer_size = sram.size;
 		else {
-			pr_err("ram_console: ioremap failed, [0x%x, 0x%x]\n", sram.start,
+			pr_err("ram_console: ioremap failed, [0x%lx, 0x%lx]\n", sram.start,
 			       sram.size);
 			return 0;
 		}
@@ -709,6 +701,57 @@ static const struct file_operations ram_console_file_ops = {
 	.release = single_release,
 };
 
+
+#ifdef VANZO_DEVICE_NAME_SUPPORT
+static struct proc_dir_entry *device_name_proc_entry;
+enum DEV_NAME_E {
+    CPU = 0,
+    LCM,
+    TP,
+    MAINCAM,
+    MAIN2CAM,
+    SUBCAM,
+#ifdef VANZO_FP_NAME_SUPPORT
+    FP,
+#endif
+    DEV_MAX_NUM
+};
+static char v_dev_name[DEV_MAX_NUM][32];
+
+static int mt_mtkdev_show(struct seq_file *m, void *v)
+{
+#if defined VANZO_FP_NAME_SUPPORT
+seq_printf(m, "Boardinfo:\nCPU:\t%s\nLCM:\t%s\nTP:\t%s\nMAINCAM:\t%s\nMAIN2CAM:\t%s\nSUBCAM:\t%s\nFP:\t%s\n\n", \
+        &v_dev_name[CPU][0], &v_dev_name[LCM][0], &v_dev_name[TP][0], &v_dev_name[MAINCAM][0], &v_dev_name[MAIN2CAM][0], &v_dev_name[SUBCAM][0],&v_dev_name[FP][0]);
+
+#else
+seq_printf(m, "Boardinfo:\nCPU:\t%s\nLCM:\t%s\nTP:\t%s\nMAINCAM:\t%s\nMAIN2CAM:\t%s\nSUBCAM:\t%s\n\n", \
+        &v_dev_name[CPU][0], &v_dev_name[LCM][0], &v_dev_name[TP][0], &v_dev_name[MAINCAM][0], &v_dev_name[MAIN2CAM][0], &v_dev_name[SUBCAM][0]);
+
+#endif
+    return 0;
+}
+
+static int mt_mtkdev_open(struct inode *inode, struct file *file)
+{
+    return single_open(file, mt_mtkdev_show, inode->i_private);
+}
+void v_set_dev_name(int id, char *name)
+{
+    if(id<DEV_MAX_NUM && strlen(name)){
+        memcpy(&v_dev_name[id][0], name, strlen(name)>31?31:strlen(name));
+    }
+}
+EXPORT_SYMBOL(v_set_dev_name);
+
+static const struct file_operations mtkdev_fops = {
+    .owner = THIS_MODULE,
+    .open = mt_mtkdev_open,
+    .read = seq_read,
+    .llseek = seq_lseek,
+    .release = single_release,
+};
+#endif
 static int __init ram_console_late_init(void)
 {
 	struct proc_dir_entry *entry;
@@ -724,6 +767,15 @@ static int __init ram_console_late_init(void)
 		ram_console_old = NULL;
 		return 0;
 	}
+#ifdef VANZO_DEVICE_NAME_SUPPORT
+    v_set_dev_name(0, CONFIG_MTK_PLATFORM);
+    device_name_proc_entry = proc_create("mtkdev", 0666, NULL, &mtkdev_fops);
+    if (NULL == device_name_proc_entry) {
+        printk("yuting create_proc_entry mtkdev failed\n");
+        proc_remove(device_name_proc_entry);
+        device_name_proc_entry = NULL;
+    }
+#endif
 	return 0;
 }
 

@@ -15,6 +15,15 @@
 
 #define _LENS_LIST_H
 
+#ifdef CONFIG_MTK_LENS_DW9767AF_SUPPORT
+#define DW9767AF_SetI2Cclient DW9767AF_SetI2Cclient_Main2
+#define DW9767AF_Ioctl DW9767AF_Ioctl_Main2
+#define DW9767AF_Release DW9767AF_Release_Main2
+extern int DW9767AF_SetI2Cclient(struct i2c_client *pstAF_I2Cclient, spinlock_t *pAF_SpinLock, int *pAF_Opened);
+extern long DW9767AF_Ioctl(struct file *a_pstFile, unsigned int a_u4Command, unsigned long a_u4Param);
+extern int DW9767AF_Release(struct inode *a_pstInode, struct file *a_pstFile);
+#endif
+
 #define AK7371AF_SetI2Cclient AK7371AF_SetI2Cclient_Main2
 #define AK7371AF_Ioctl AK7371AF_Ioctl_Main2
 #define AK7371AF_Release AK7371AF_Release_Main2

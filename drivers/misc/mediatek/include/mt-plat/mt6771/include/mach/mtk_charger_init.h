@@ -25,6 +25,11 @@
 #define AC_CHARGER_CURRENT					2050000
 #define AC_CHARGER_INPUT_CURRENT			3200000
 #define NON_STD_AC_CHARGER_CURRENT			500000
+/* Foeec:zhangqingzhan on: Fri, 13 Mar 2020 15:12:51 +0800
+ *for wireless charger
+ */
+#define WPC_CHARGER_CURRENT			        1000000
+// End of Foeec: zhangqingzhan
 #define CHARGING_HOST_CHARGER_CURRENT		650000
 #define APPLE_1_0A_CHARGER_CURRENT		650000
 #define APPLE_2_1A_CHARGER_CURRENT		800000
@@ -61,7 +66,7 @@
 #define TA_AC_9V_INPUT_CURRENT	3200000
 #define TA_AC_7V_INPUT_CURRENT	3200000
 #define TA_9V_SUPPORT
-#define TA_12V_SUPPORT
+//#define TA_12V_SUPPORT
 
 /* pe2.0 */
 #define PE20_ICHG_LEAVE_THRESHOLD 1000 /* mA */

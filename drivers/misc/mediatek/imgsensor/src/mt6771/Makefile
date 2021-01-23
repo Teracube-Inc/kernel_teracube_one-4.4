@@ -79,3 +79,13 @@ ifeq ($(CONFIG_TRUSTONIC_TEE_SUPPORT),y)
 include $(srctree)/drivers/misc/mediatek/gud/Makefile.include
 endif
 obj-y += seninf/
+# Stoneoim:wuchuanrong on: Fri, 26 Jan 2018 21:44:23 +0800
+# TODO: design for fake dual camera
+ifeq ($(strip $(VANZO_FEATURE_FAKE_DUAL_CAMERA_BY_NAME)),yes)
+ifneq ($(strip $(CUSTOM_FAKE_CAMERA)),)
+    subdir-ccflags-y                += -I$(srctree)/drivers/misc/mediatek/imgsensor/src/mt6771/fake_camera/inc
+    obj-y                           += fake_camera/
+endif
+endif
+# End of Stoneoim: wuchuanrong
+

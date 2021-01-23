@@ -114,6 +114,11 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 		compatible = "microtrust,tester-v1";
 	};
 
+	tkcore {
+		compatible = "trustkernel,tkcore";
+		interrupts = <GIC_SPI 296 IRQ_TYPE_EDGE_RISING>;
+	};
+
 	cpus {
 		#address-cells = <1>;
 		#size-cells = <0>;
@@ -1857,10 +1862,14 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 
 	nfc:nfc {
 		compatible = "mediatek,nfc-gpio-v2";
-		gpio-rst = <25>;
-		gpio-rst-std = <&pio 25 0x0>;
-		gpio-irq = <26>;
-		gpio-irq-std = <&pio 26 0x0>;
+		gpio-rst = <21>;
+		gpio-rst-std = <&pio 21 0x0>;
+		gpio-irq = <22>;
+		gpio-irq-std = <&pio 22 0x0>;
+	};
+
+	lcm_mode:lcm_mode {
+		compatible = "mediatek,lcm_mode";
 	};
 
 	gps {
@@ -1902,6 +1911,10 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 
 	accdet: accdet {
 		compatible = "mediatek,pmic-accdet";
+	};
+
+	hall: hall {
+		compatible = "mediatek,hall";
 	};
 
 	mt6356_gauge {
@@ -3809,8 +3822,8 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 		enable_min_charge_temperature;
 		min_charge_temperature = <0>;
 		min_charge_temperature_plus_x_degree = <6>;
-		max_charge_temperature = <50>;
-		max_charge_temperature_minus_x_degree = <47>;
+		max_charge_temperature = <58>;
+		max_charge_temperature_minus_x_degree = <55>;
 
 		/* PE 2.0 */
 		pe20_ichg_level_threshold = <1000>;
@@ -3839,10 +3852,18 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 
 	};
 
-	goodix_fp: fingerprint {
+	goodix_fp: fingerprint@ {
 		compatible = "mediatek,goodix-fp";
 	};
-
+	microarray_fp: microarray_fp{
+		compatible  = "mediatek,microarray_fp";
+	};
+	fingerprint: fingerprint {
+		compatible = "mediatek, fingerprint-eint";
+	};
+	vanzo_fp: vanzo_fp {
+		compatible = "mediatek,vanzo-fp";
+	};
 	otg_iddig: otg_iddig{
 		compatible = "mediatek,usb_iddig_bi_eint";
 	};
@@ -3876,7 +3897,7 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 	};
 
 	smart_pa: smart_pa {
-
+		compatible = "mediatek,mtksmartpa";
 	};
 
 	mt6311_pmic: mt6311_pmic {

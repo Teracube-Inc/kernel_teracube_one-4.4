@@ -45,10 +45,6 @@ static void (*check_violation_cb)(void);
 static const char *UNKNOWN_MASTER = "unknown";
 static unsigned int show_region;
 
-#ifdef MPU_BYPASS
-static unsigned int init_flag;
-#endif
-
 static unsigned int match_id(
 	unsigned int axi_id, unsigned int tbl_idx, unsigned int port_id)
 {
@@ -144,14 +140,6 @@ static void check_violation(void)
 		pr_info("[MPU] write out-of-range violation\n");
 	else if (wr_oo_vio == 2)
 		pr_info("[MPU] read out-of-range violation\n");
-
-#ifdef MPU_BYPASS
-	if (bypass_violation(mpus, &init_flag)) {
-		clear_violation();
-		clear_md_violation();
-		return;
-	}
-#endif
 
 #ifdef CONFIG_MTK_AEE_FEATURE
 	if (wr_vio != 0) {
@@ -453,10 +441,6 @@ void mpu_init(struct platform_driver *emi_ctrl, struct platform_device *pdev)
 	} else
 		clear_violation();
 
-#ifdef MPU_BYPASS
-	bypass_init(&init_flag);
-#endif
-
 	if (node) {
 		mpu_irq = irq_of_parse_and_map(node, MPU_IRQ_INDEX);
 		pr_info("[MPU] get MPU IRQ: %d\n", mpu_irq);
@@ -496,8 +480,3 @@ int emi_mpu_check_register(void (*cb_func)(void))
 }
 EXPORT_SYMBOL(emi_mpu_check_register);
 
-void clear_md_violation(void)
-{
-	mt_reg_sync_writel(0x80000000, EMI_MPUT_2ND);
-}
-EXPORT_SYMBOL(clear_md_violation);

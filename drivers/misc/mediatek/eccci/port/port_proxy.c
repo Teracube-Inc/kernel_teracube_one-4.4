@@ -569,9 +569,7 @@ int port_kthread_handler(void *arg)
 
 	while (1) {
 		if (skb_queue_empty(&port->rx_skb_list)) {
-			spin_lock_irq(&port->rx_wq.lock);
-			ret = wait_event_interruptible_locked_irq(port->rx_wq, !skb_queue_empty(&port->rx_skb_list));
-			spin_unlock_irq(&port->rx_wq.lock);
+			ret = wait_event_interruptible(port->rx_wq, !skb_queue_empty(&port->rx_skb_list));
 			if (ret == -ERESTARTSYS)
 				continue;	/* FIXME */
 		}
@@ -984,8 +982,7 @@ static inline int proxy_dispatch_recv_skb(struct port_proxy *proxy_p, int hif_id
 	if (ret < 0 && ret != -CCCI_ERR_PORT_RX_FULL) {
 		if (channel == CCCI_CONTROL_RX)
 			CCCI_ERROR_LOG(md_id, CORE, "drop on channel %d, ret %d\n", channel, ret);
-		if (skb)
-			ccci_free_skb(skb);
+		ccci_free_skb(skb);
 		ret = -CCCI_ERR_DROP_PACKET;
 	}
 
@@ -1274,7 +1271,6 @@ static inline void user_broadcast_wrapper(int md_id, unsigned int state)
 
 	switch (state) {
 	case GATED:
-		mapped_event = MD_STA_EV_STOP;
 		break;
 	case BOOT_WAITING_FOR_HS1:
 		break;

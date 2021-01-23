@@ -59,3 +59,11 @@ config USB_VBUS_GPIO
 	  Enable Mediatek USB OTG VBUS GPIO control mechanism.
 	  Say Y here if your want to use mechanism.
 	  If unsure, say N.
+
+config USB_OTG_EN_PIN
+	tristate "MediaTek OTG EN PIN control support"
+	default n
+	---help---
+	  Enable Mediatek USB OTG EN PIN control mechanism.
+	  Say Y here if your want to use mechanism.
+	  If unsure, say N.

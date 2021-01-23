@@ -26,7 +26,6 @@
 #include <mt-plat/upmu_common.h>
 #endif
 #include <mtk_vcorefs_manager.h>
-#include <mt-plat/mtk_boot.h>
 
 #include <mtk_spm_vcore_dvfs.h>
 #if defined(CONFIG_MTK_DRAMC)
@@ -221,10 +220,8 @@ bool is_vcorefs_feature_enable(void)
 		return false;
 	}
 #endif
-
 	if (!spm_load_firmware_status()) {
-		if (get_boot_mode() != RECOVERY_BOOT)
-			vcorefs_err("SPM FIRMWARE IS NOT READY\n");
+		vcorefs_err("SPM FIRMWARE IS NOT READY\n");
 		return false;
 	}
 

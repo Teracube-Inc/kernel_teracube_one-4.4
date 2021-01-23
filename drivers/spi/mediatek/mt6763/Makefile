@@ -8,4 +8,8 @@ ifeq ($(CONFIG_TRUSTONIC_TEE_SUPPORT),y)
 	include $(srctree)/drivers/misc/mediatek/gud/Makefile.include
 endif
 
+ifeq ($(CONFIG_TRUSTKERNEL_TEE_FP_SUPPORT),y)
+subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/tkcore/include/linux
+endif
+
 obj-$(CONFIG_MTK_SPI) += spi.o spi-dev.o

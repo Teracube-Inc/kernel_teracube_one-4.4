@@ -344,8 +344,8 @@ static int get_devinfo(void)
 	}
 
 #ifdef CONFIG_EEM_AEE_RR_REC
-	aee_rr_rec_ptp_devinfo_1(turbocode | (turbo_bininfo.CPU_T_BIN << 1) |
-		(turbo_bininfo.GPU_OPP0_T_BIN << 4) | (turbo_bininfo.GPU_OPP1_T_BIN << 7));
+	aee_rr_rec_ptp_devinfo_1(turbocode || (turbo_bininfo.CPU_T_BIN >> 1) ||
+		(turbo_bininfo.GPU_OPP0_T_BIN >> 4) || (turbo_bininfo.GPU_OPP1_T_BIN >> 7));
 
 #if 0
 	eem_error("t:%d, tbin:%d, g0bin:%d, g1bin:%d, bin data: 0x%x",

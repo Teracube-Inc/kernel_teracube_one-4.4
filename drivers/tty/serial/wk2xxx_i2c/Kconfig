@@ -1,0 +1,6 @@
+config SERIAL_WK2132
+  tristate "FE wk2132 i2c to uart Support"
+    ---help---
+      This selects the  wk2132 connected to MediaTek chips.
+      If you want to use wk2132 support, say Y or M here.
+      If unsure, say N.

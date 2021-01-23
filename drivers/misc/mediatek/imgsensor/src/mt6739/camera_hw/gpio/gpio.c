@@ -32,8 +32,8 @@ struct GPIO_PINCTRL gpio_pinctrl_list[GPIO_CTRL_STATE_MAX_NUM] = {
 	{"cam1_pnd0"},
 	{"cam1_rst1"},
 	{"cam1_rst0"},
-	{NULL},
-	{NULL},
+	{"cam_ldo_sub_vcama_1"},
+	{"cam_ldo_sub_vcama_0"},
 	{"cam_ldo_sub_vcamd_1"},
 	{"cam_ldo_sub_vcamd_0"},
 	/* Main2 */
@@ -107,7 +107,7 @@ static enum IMGSENSOR_RETURN gpio_init(void *pinstance)
 
 	return ret;
 }
-
+int pinSetIdx = 0;
 static enum IMGSENSOR_RETURN gpio_set(
 	void *pinstance,
 	enum IMGSENSOR_SENSOR_IDX   sensor_idx,
@@ -118,6 +118,8 @@ static enum IMGSENSOR_RETURN gpio_set(
 	struct GPIO                 *pgpio = (struct GPIO *)pinstance;
 	enum   GPIO_STATE            gpio_state;
 	enum   GPIO_CTRL_STATE       ctrl_state_offset;
+
+    pinSetIdx = sensor_idx;
 
 	if (pin < IMGSENSOR_HW_PIN_PDN ||
 #ifdef MIPI_SWITCH

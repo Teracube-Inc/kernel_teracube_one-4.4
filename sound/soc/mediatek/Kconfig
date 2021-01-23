@@ -230,6 +230,18 @@ config MTK_AUDIO_SCP_SPKPROTECT_SUPPORT
 	  The process is done in DSP.
 	  Select Y to enable CONFIG_MTK_AUDIO_SCP_SPKPROTECT_SUPPORT for DSP playback.
 
+config SND_SOC_AW87319
+        tristate "SoC Audio for awinic AW87319 Smart K PA"
+        depends on I2C
+        help
+          This option enables support for AW87319 Smart K PA.
+
+config SND_SOC_AW87329
+        tristate "SoC Audio for awinic AW87329 Smart K PA"
+        depends on I2C
+        help
+          This option enables support for AW87329 Smart K PA.
+
 config MTK_VOW_BARGE_IN_SUPPORT
 	bool "Support VOW barge-in"
 	help

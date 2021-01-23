@@ -35,18 +35,13 @@
 #include <asm/tlbflush.h>
 #include "sh_svp.h"
 
-#ifdef CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT
 #define COUNT_DOWN_MS 10000
 #define	COUNT_DOWN_INTERVAL 500
 #define	COUNT_DOWN_LIMIT (COUNT_DOWN_MS / COUNT_DOWN_INTERVAL)
 static atomic_t svp_online_count_down;
-static atomic_t svp_ref_count;
-static struct task_struct *_svp_online_task; /* NULL */
-static DEFINE_MUTEX(svp_online_task_lock);
-#endif
 
-/* 16 MB alignment */
-#define SSVP_CMA_ALIGN_PAGE_ORDER 12
+/* 64 MB alignment */
+#define SSVP_CMA_ALIGN_PAGE_ORDER 14
 #define SSVP_ALIGN_SHIFT (SSVP_CMA_ALIGN_PAGE_ORDER + PAGE_SHIFT)
 #define SSVP_ALIGN (1 << (PAGE_SHIFT + (MAX_ORDER - 1)))
 
@@ -59,6 +54,10 @@ static int is_pre_reserve_memory;
 #include "mt-plat/mtk_meminfo.h"
 
 static unsigned long svp_usage_count;
+static atomic_t svp_ref_count;
+
+static struct task_struct *_svp_online_task; /* NULL */
+static DEFINE_MUTEX(svp_online_task_lock);
 static struct cma *cma;
 
 #define pmd_unmapping(virt, size) set_pmd_mapping(virt, size, 0)
@@ -93,9 +92,6 @@ static int __init dt_scan_for_ssvp_features(unsigned long node, const char *unam
 {
 	int i = 0;
 
-	if (__MAX_NR_SSMR_FEATURES <= 0)
-		return 0;
-
 	if (strncmp(uname, SSVP_FEATURES_DT_UNAME, strlen(SSVP_FEATURES_DT_UNAME)) == 0) {
 		for (; i < __MAX_NR_SSMR_FEATURES; i++) {
 			get_feature_size_by_dt_prop(node,
@@ -124,12 +120,9 @@ static void __init setup_feature_size(struct reserved_mem *rmem)
 	}
 }
 
-static int __init finalize_region_size(void)
+static void __init finalize_region_size(void)
 {
 	int i = 0;
-
-	if (__MAX_NR_SSVPSUBS <= 0)
-		return 1;
 
 	for (; i < __MAX_NR_SSVPSUBS; i++) {
 		u64 max_feat_req_size = 0;
@@ -145,16 +138,12 @@ static int __init finalize_region_size(void)
 		pr_info("%s, %s: %pa\n", __func__, _svpregs[i].name,
 			&_svpregs[i].usable_size);
 	}
-	return 0;
 }
 
 static u64 __init get_total_target_size(void)
 {
 	u64 total = 0;
 	int i = 0;
-
-	if (__MAX_NR_SSVPSUBS <= 0)
-		return total;
 
 	for (; i < __MAX_NR_SSVPSUBS; i++)
 		total += _svpregs[i].usable_size;
@@ -278,7 +267,6 @@ RESERVEDMEM_OF_DECLARE(tui_memory, "mediatek,memory-tui",
 			dedicate_tui_memory);
 #endif
 
-#ifdef SSVP_SECMEM_REGION_ENABLE
 static int __init dedicate_svp_memory(struct reserved_mem *rmem)
 {
 	struct SSVP_Region *region;
@@ -301,7 +289,6 @@ static int __init dedicate_svp_memory(struct reserved_mem *rmem)
 }
 RESERVEDMEM_OF_DECLARE(svp_memory, "mediatek,memory-svp",
 			dedicate_svp_memory);
-#endif
 
 #ifdef SSVP_PROT_SHAREDMEM_REGION_ENABLE
 static int __init dedicate_prot_sharedmem_memory(struct reserved_mem *rmem)
@@ -332,9 +319,6 @@ static bool has_dedicate_resvmem_region(void)
 {
 	bool ret = false;
 	int i = 0;
-
-	if (__MAX_NR_SSVPSUBS <= 0)
-		return ret;
 
 	for (; i < __MAX_NR_SSVPSUBS; i++) {
 		if (_svpregs[i].use_cache_memory) {
@@ -672,7 +656,6 @@ out:
 EXPORT_SYMBOL(tui_region_online);
 #endif
 
-#ifdef CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT
 static void reset_svp_online_task(void)
 {
 	mutex_lock(&svp_online_task_lock);
@@ -818,7 +801,6 @@ out:
 	return retval;
 }
 EXPORT_SYMBOL(svp_region_online);
-#endif
 
 static bool is_valid_feature(unsigned int feat)
 {
@@ -947,7 +929,6 @@ int ssmr_online(unsigned int feat)
 }
 EXPORT_SYMBOL(ssmr_online);
 
-#ifdef CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT
 static long svp_cma_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	int ret = 0;
@@ -1002,7 +983,6 @@ static const struct file_operations svp_cma_fops = {
 	.unlocked_ioctl = svp_cma_ioctl,
 	.compat_ioctl   = svp_cma_COMPAT_ioctl,
 };
-#endif
 
 static ssize_t memory_ssvp_write(struct file *file, const char __user *user_buf,
 		size_t size, loff_t *ppos)
@@ -1018,9 +998,6 @@ static ssize_t memory_ssvp_write(struct file *file, const char __user *user_buf,
 
 	pr_info("%s[%d]: cmd> %s\n", __func__, __LINE__, buf);
 
-	if (feat == __MAX_NR_SSMR_FEATURES)
-		return -EINVAL;
-
 	for (feat = 0; feat < __MAX_NR_SSMR_FEATURES; feat++) {
 		if (!strncmp(buf, _ssmr_feats[feat].cmd_offline,
 			strlen(buf) - 1)) {
@@ -1033,6 +1010,9 @@ static ssize_t memory_ssvp_write(struct file *file, const char __user *user_buf,
 			break;
 		}
 	}
+
+	if (feat == __MAX_NR_SSMR_FEATURES)
+		return -EINVAL;
 
 	*ppos += size;
 	return size;
@@ -1052,11 +1032,6 @@ static int memory_ssvp_show(struct seq_file *m, void *v)
 			&cma_base,
 			__phys_to_pfn(cma_base), __phys_to_pfn(cma_end),
 			cma_get_size(cma) >> PAGE_SHIFT);
-
-	if (__MAX_NR_SSVPSUBS <= 0) {
-		seq_puts(m, "no SSMR user enable\n");
-		return 0;
-	}
 
 	for (; i < __MAX_NR_SSVPSUBS; i++) {
 		unsigned long region_pa = (unsigned long) page_to_phys(_svpregs[i].page);
@@ -1221,12 +1196,7 @@ static int __init memory_ssvp_debug_init(void)
 	/*
 	 * TODO: integrate into _svpregs[] initialization
 	 */
-#ifdef CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT
 	_svpregs[i].proc_entry_fops = &svp_cma_fops;
-#endif
-
-	if (__MAX_NR_SSVPSUBS <= 0)
-		return 0;
 
 	for (; i < __MAX_NR_SSVPSUBS; i++) {
 		memory_ssvp_init_region(_svpregs[i].name,

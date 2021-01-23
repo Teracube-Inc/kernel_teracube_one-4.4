@@ -85,6 +85,11 @@
 #include<mtk_auxadc.h>
 #endif
 
+#ifdef CONFIG_SND_SOC_AW87329
+extern unsigned char aw87329_audio_kspk(void);
+extern unsigned char aw87329_audio_drcv(void);
+extern unsigned char aw87329_audio_off(void);
+#endif
 
 #define ANALOG_HPTRIM
 
@@ -4191,13 +4196,20 @@ static void Ext_Speaker_Amp_Change(bool enable)
 #define SPK_WARM_UP_TIME        (25)	/* unit is ms */
 	if (enable) {
 		pr_debug("Ext_Speaker_Amp_Change ON+\n");
-
+#ifdef CONFIG_SND_SOC_AW87329
+		aw87329_audio_off();
+#else
 		AudDrv_GPIO_EXTAMP_Select(false, 3);
+#endif
 
 		/*udelay(1000); */
 		usleep_range(1 * 1000, 20 * 1000);
 
+#ifdef CONFIG_SND_SOC_AW87329
+		aw87329_audio_kspk();
+#else
 		AudDrv_GPIO_EXTAMP_Select(true, 3);
+#endif
 
 		msleep(SPK_WARM_UP_TIME);
 
@@ -4205,7 +4217,11 @@ static void Ext_Speaker_Amp_Change(bool enable)
 	} else {
 		pr_debug("Ext_Speaker_Amp_Change OFF+\n");
 
+#ifdef CONFIG_SND_SOC_AW87329
+		aw87329_audio_off();
+#else
 		AudDrv_GPIO_EXTAMP_Select(false, 3);
+#endif
 
 		udelay(500);
 

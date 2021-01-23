@@ -83,12 +83,24 @@ static struct stAF_OisPosInfo OisPosInfo;
 /* ------------------------- */
 
 static struct stAF_DrvList g_stAF_DrvList[MAX_NUM_OF_LENS] = {
+	#ifdef CONFIG_MTK_LENS_BU6424AF_SUPPORT
 	{1, AFDRV_BU6424AF, BU6424AF_SetI2Cclient, BU6424AF_Ioctl, BU6424AF_Release, NULL},
+	#endif
+	#ifdef CONFIG_MTK_LENS_BU6429AF_SUPPORT
 	{1, AFDRV_BU6429AF, BU6429AF_SetI2Cclient, BU6429AF_Ioctl, BU6429AF_Release, NULL},
+	#endif
+	#ifdef CONFIG_MTK_LENS_DW9714AF_SUPPORT
 	{1, AFDRV_DW9714AF, DW9714AF_SetI2Cclient, DW9714AF_Ioctl, DW9714AF_Release, NULL},
+	#endif
+	#ifdef CONFIG_MTK_LENS_DW9718AF_SUPPORT
 	{1, AFDRV_DW9718AF, DW9718AF_SetI2Cclient, DW9718AF_Ioctl, DW9718AF_Release, NULL},
+	#endif
+	#ifdef CONFIG_MTK_LENS_LC898212AF_SUPPORT
 	{1, AFDRV_LC898212AF, LC898212AF_SetI2Cclient, LC898212AF_Ioctl, LC898212AF_Release, NULL},
+	#endif
+	#ifdef CONFIG_MTK_LENS_FM50AF_SUPPORT
 	{1, AFDRV_FM50AF, FM50AF_SetI2Cclient, FM50AF_Ioctl, FM50AF_Release, NULL},
+	#endif
 };
 
 static struct stAF_DrvList *g_pstAF_CurDrv;

@@ -209,7 +209,6 @@ char *spm_vcorefs_dump_dvfs_regs(char *p)
 		p += sprintf(p, "SPM_DVFS_CMD0~1        : 0x%x, 0x%x\n",
 							spm_read(SPM_DVFS_CMD0), spm_read(SPM_DVFS_CMD1));
 		p += sprintf(p, "PCM_IM_PTR             : 0x%x (%u)\n", spm_read(PCM_IM_PTR), spm_read(PCM_IM_LEN));
-		p += sprintf(p, "SPM_SW_RSV_3           : 0x%x\n", spm_read(SPM_SW_RSV_3));
 
 		/* BW Info */
 		p += sprintf(p, "BW_TOTAL: %d (AVG: %d) thres: 0x%x, 0x%x seg: 0x%x\n",
@@ -291,7 +290,7 @@ char *spm_vcorefs_dump_dvfs_regs(char *p)
 		spm_vcorefs_warn("SPM_DVFS_CMD0~1        : 0x%x, 0x%x\n",
 							spm_read(SPM_DVFS_CMD0), spm_read(SPM_DVFS_CMD1));
 		spm_vcorefs_warn("PCM_IM_PTR             :: 0x%x (%u)\n", spm_read(PCM_IM_PTR), spm_read(PCM_IM_LEN));
-		spm_vcorefs_warn("SPM_SW_RSV_3           : 0x%x\n", spm_read(SPM_SW_RSV_3));
+
 		/* BW Info */
 		spm_vcorefs_warn("BW_TOTAL: %d (AVG: %d) thres: 0x%x, 0x%x seg: 0x%x\n",
 				dvfsrc_get_bw(QOS_TOTAL), dvfsrc_get_bw(QOS_TOTAL_AVE),
@@ -639,13 +638,18 @@ void dvfsrc_set_scp_vcore_request(unsigned int level)
 
 void dvfsrc_set_power_model_ddr_request(unsigned int level)
 {
+	unsigned long flags;
 	unsigned int val;
 
 	if (is_force_opp_enable())
 		return;
 
+	spin_lock_irqsave(&__spm_lock, flags);
+
 	val = (spm_read(DVFSRC_SW_REQ2) & ~(0x3)) | level;
 	spm_write(DVFSRC_SW_REQ2, val);
+
+	spin_unlock_irqrestore(&__spm_lock, flags);
 }
 
 static void dvfsrc_init(void)

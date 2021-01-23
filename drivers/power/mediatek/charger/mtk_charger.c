@@ -72,6 +72,12 @@
 #include <musb_core.h>
 #include <pmic.h>
 #include <mtk_gauge_time_service.h>
+/* Stoneoim:wuxiaotian on: Thu, 29 Aug 2019 12:55:38 +0800
+ * TODO: replace this line with your comment
+ */
+int chargingFlag = 0;
+int is_switch_on = 0;
+// End of Stoneoim:wuxiaotian
 
 static struct charger_manager *pinfo;
 static struct list_head consumer_head = LIST_HEAD_INIT(consumer_head);
@@ -1239,7 +1245,7 @@ static void mtk_battery_notify_VBatTemp_check(struct charger_manager *info)
 				info->battery_temperature);
 		}
 	} else {
-#ifdef BAT_LOW_TEMP_PROTECT_ENABLE
+#if 1//def BAT_LOW_TEMP_PROTECT_ENABLE
 		if (info->battery_temperature < info->thermal.min_charge_temperature) {
 			info->notify_code |= 0x0020;
 			chr_err("[BATTERY] bat_temp(%d) out of range(too low)\n",
@@ -1331,6 +1337,31 @@ static void charger_check_status(struct charger_manager *info)
 
 	temperature = info->battery_temperature;
 	thermal = &info->thermal;
+/* Stoneoim:wuxiaotian on: Thu, 29 Aug 2019 12:56:24 +0800
+ * TODO: replace this line with your comment
+ */
+    if(is_switch_on){
+      if(battery_get_uisoc() < 51)
+      {
+        chargingFlag = 1;
+      }
+      else if(battery_get_uisoc() > 69)
+      {
+        chargingFlag = 0;
+      }
+      if(chargingFlag)
+      {
+        charging = true;
+      }
+      else
+      {
+        charging = false;
+        goto stop_charging;
+      }
+    }  
+    else
+      charging = true;
+// End of Stoneoim:wuxiaotian
 
 	if (info->enable_sw_jeita == true) {
 		do_sw_jeita_state_machine(info);
@@ -1677,6 +1708,18 @@ static int mtk_charger_parse_dt(struct charger_manager *info, struct device *dev
 			NON_STD_AC_CHARGER_CURRENT);
 		info->data.non_std_ac_charger_current = NON_STD_AC_CHARGER_CURRENT;
 	}
+/* Foeec:zhangqingzhan on: Fri, 13 Mar 2020 15:18:19 +0800
+ * for wireless charger
+ */
+	if (of_property_read_u32(np, "wpc_charger_current", &val) >= 0) {
+		info->data.wpc_charger_current = val;
+	} else {
+		chr_err(
+			"use default WPC_CHARGER_CURRENT:%d\n",
+			WPC_CHARGER_CURRENT);
+		info->data.wpc_charger_current = WPC_CHARGER_CURRENT;
+	}
+// End of Foeec: zhangqingzhan
 
 	if (of_property_read_u32(np, "charging_host_charger_current", &val) >= 0) {
 		info->data.charging_host_charger_current = val;
@@ -2117,6 +2160,32 @@ static ssize_t show_Pump_Express(struct device *dev, struct device_attribute *at
 }
 
 static DEVICE_ATTR(Pump_Express, 0444, show_Pump_Express, NULL);
+/* Stoneoim:wuxiaotian on: Thu, 29 Aug 2019 12:57:20 +0800
+ * TODO: replace this line with your comment
+ */
+static ssize_t show_Charging_Switch(struct device *dev, struct device_attribute *attr, char *buf)
+{        
+  ssize_t num = 0;
+  num = snprintf(buf, 128, "%d\n", is_switch_on);
+
+  return num;
+}        
+
+static ssize_t store_Charging_Switch(struct device *dev, struct device_attribute *attr, const char *buf, size_t size)
+{        
+  if(size == 0)
+    return 0;
+
+  if((buf[0]== '1') && (is_switch_on == 0))
+    is_switch_on = 1;
+  if((buf[0]== '0') && (is_switch_on == 1))
+    is_switch_on = 0;
+
+  return size;
+}        
+
+static DEVICE_ATTR(Charging_Switch, 0664, show_Charging_Switch, store_Charging_Switch);
+// End of Stoneoim:wuxiaotian
 
 static ssize_t show_BatteryNotify(struct device *dev, struct device_attribute *attr, char *buf)
 {
@@ -2445,6 +2514,13 @@ static int mtk_charger_setup_files(struct platform_device *pdev)
 	ret = device_create_file(&(pdev->dev), &dev_attr_chg2_current);
 	if (ret)
 		goto _out;
+/* Stoneoim:wuxiaotian on: Thu, 29 Aug 2019 12:58:10 +0800
+ * TODO: replace this line with your comment
+ */
+    ret = device_create_file(&(pdev->dev), &dev_attr_Charging_Switch);
+    if (ret)
+		goto _out;
+// End of Stoneoim:wuxiaotian
 
 	battery_dir = proc_mkdir("mtk_battery_cmd", NULL);
 	if (!battery_dir) {

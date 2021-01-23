@@ -88,15 +88,13 @@ static int pickup_gesture_batch(int flag, int64_t samplingPeriodNs, int64_t maxB
 }
 static int pickup_gesture_recv_data(struct data_unit_t *event, void *reserved)
 {
-	int err = 0;
-
 	if (event->flush_action == FLUSH_ACTION)
 		PKUPHUB_LOG("pickup_gesture do not support flush\n");
 	else if (event->flush_action == DATA_ACTION) {
 		__pm_wakeup_event(&pickup_wake_lock, msecs_to_jiffies(100));
-		err = situation_notify(ID_PICK_UP_GESTURE);
+		situation_notify(ID_PICK_UP_GESTURE);
 	}
-	return err;
+	return 0;
 }
 
 static int pkuphub_local_init(void)

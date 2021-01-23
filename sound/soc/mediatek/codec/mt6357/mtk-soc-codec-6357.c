@@ -147,6 +147,15 @@ static unsigned int RG_AUDHPLTRIM_VAUDP15, RG_AUDHPRTRIM_VAUDP15,
 	RG_AUDHPLFINETRIM_VAUDP15_SPKHP, RG_AUDHPRFINETRIM_VAUDP15_SPKHP;
 #endif
 #endif
+/* Stoneoim:zhangqingzhan on: Fri, 01 Dec 2017 15:34:17 +0800
+ * for aw87319 audio pa 
+ */
+#if (defined CONFIG_SND_SOC_AW87319)
+extern unsigned char aw87319_audio_speaker(void);
+extern unsigned char aw87319_audio_receiver(void);
+extern unsigned char aw87319_audio_off(void);
+#endif
+// End of Stoneoim: zhangqingzhan
 static int mAdc_Power_Mode;
 static bool apply_n12db_gain;
 static unsigned int dAuxAdcChannel = 16;
@@ -3366,14 +3375,38 @@ static void Ext_Speaker_Amp_Change(bool enable)
 	pr_debug("%s(), enable %d\n", __func__, enable);
 #define SPK_WARM_UP_TIME        (25)	/* unit is ms */
 	if (enable) {
+/* Stoneoim:zhangqingzhan on: Fri, 01 Dec 2017 15:35:19 +0800
+ * for aw87319 audio pa
+ */
+#if (defined CONFIG_SND_SOC_AW87319)
+        aw87319_audio_off();
+#else
+// End of Stoneoim: zhangqingzhan
 		AudDrv_GPIO_EXTAMP_Select(false, 3);
+#endif
 		/*udelay(1000); */
 		usleep_range(1 * 1000, 2 * 1000);
+/* Stoneoim:zhangqingzhan on: Fri, 01 Dec 2017 15:35:56 +0800
+ * for aw 87319 audio pa
+ */
+#if (defined CONFIG_SND_SOC_AW87319)
+        aw87319_audio_speaker();
+#else
+// End of Stoneoim: zhangqingzhan
 		AudDrv_GPIO_EXTAMP_Select(true, 3);
+#endif
 		/* msleep(SPK_WARM_UP_TIME); */
 		usleep_range(5 * 1000, 10 * 1000);
 	} else {
+/* Stoneoim:zhangqingzhan on: Fri, 01 Dec 2017 15:36:05 +0800
+ * for aw87319 audio pa
+ */
+#if (defined CONFIG_SND_SOC_AW87319)
+        aw87319_audio_off();
+#else
+// End of Stoneoim: zhangqingzhan
 		AudDrv_GPIO_EXTAMP_Select(false, 3);
+#endif
 		udelay(500);
 	}
 }
