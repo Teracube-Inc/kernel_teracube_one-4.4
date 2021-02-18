@@ -48,13 +48,6 @@
         </module>
         <module name="eint">
             <count>193</count>
-            <eint0>
-                <varName>MRDUMP_EXT_RST</varName>
-                <debounce_time>512</debounce_time>
-                <polarity>Low</polarity>
-                <sensitive_level>Level</sensitive_level>
-                <debounce_en>Enable</debounce_en>
-            </eint0>
             <eint1>
                 <varName>TOUCH</varName>
                 <debounce_time>0</debounce_time>
