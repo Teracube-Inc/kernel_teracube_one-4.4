@@ -31,6 +31,13 @@ ifneq ($(KERNELRELEASE),)
     $(MODULE_NAME)-objs += common/connectivity_build_in_adapter.o
     $(MODULE_NAME)-objs += common/wmt_build_in_adapter.o
 
+    obj-$(CONFIG_MTK_COMBO) += common/
+    obj-$(CONFIG_MTK_COMBO_WIFI) += wlan/adaptor/
+    obj-$(CONFIG_MTK_COMBO_CHIP_CONSYS_6771) += wlan/core/gen3/
+    obj-$(CONFIG_MTK_COMBO_BT) += bt/mt66xx/legacy/
+    obj-$(CONFIG_MTK_COMBO_GPS) += gps/
+    obj-$(CONFIG_MTK_FMRADIO) += fmradio/ 
+
 # Otherwise we were called directly from the command line;
 # invoke the kernel build system.
 else

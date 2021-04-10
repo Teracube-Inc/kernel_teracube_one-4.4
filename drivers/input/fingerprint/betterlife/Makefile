@@ -47,7 +47,7 @@ endif
 
 ifndef CONFIG_MTK_PLATFORM
 # most mediatek platform will define CONFIG_MTK_PLATFORM, if your platform is mediatek but not define CONFIG_MTK_PLATFORM, please ignore the next line error
-$(error "************* platform is not mediatek, please set BL_PLATFORM as PLATFORM_SPRD or PLATFORM_QCOM *************")
+$(warning "************* platform is not mediatek, please set BL_PLATFORM as PLATFORM_SPRD or PLATFORM_QCOM *************")
 else
 $(warning "CONFIG_MTK_PLATFORM is $(CONFIG_MTK_PLATFORM)")
 ifeq ($(CONFIG_MTK_PLATFORM), "mt6739")

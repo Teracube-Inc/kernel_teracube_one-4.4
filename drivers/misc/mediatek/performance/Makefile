@@ -51,3 +51,5 @@ endif
 ifneq ($(wildcard $(srctree)/drivers/misc/mediatek/performance/perfmgr/$(MTK_PLATFORM)/),)
 		obj-y += fbc/
 endif
+
+obj-$(CONFIG_MTK_FPSGO) += fpsgo_cus/
