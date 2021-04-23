@@ -256,7 +256,7 @@ static int concurrent_time_seq_show(struct seq_file *m, void *v,
 	hlist_for_each_entry_rcu(uid_entry, (struct hlist_head *)v, hash) {
 		atomic64_t *times = get_times(uid_entry->concurrent_times);
 
-		seq_put_decimal_ull(m, ' ', (u64)uid_entry->uid);
+		seq_put_decimal_ull(m, '\0', (u64)uid_entry->uid);
 		seq_putc(m, ':');
 
 		for (i = 0; i < num_possible_cpus; ++i) {
@@ -281,7 +281,7 @@ static int concurrent_active_time_seq_show(struct seq_file *m, void *v)
 {
 	if (v == uid_hash_table) {
 		seq_puts(m, "cpus: ");
-		seq_put_decimal_ull(m, ' ', num_possible_cpus());
+		seq_put_decimal_ull(m, '\0', num_possible_cpus());
 		seq_putc(m, '\n');
 	}
 
@@ -308,12 +308,12 @@ static int concurrent_policy_time_seq_show(struct seq_file *m, void *v)
 			if (freqs != last_freqs) {
 				if (last_freqs) {
 					seq_puts(m, ": ");
-					seq_put_decimal_ull(m, ' ', cnt);
+					seq_put_decimal_ull(m, '\0', cnt);
 					seq_putc(m, ' ');
 					cnt = 0;
 				}
 				seq_puts(m, "policy");
-				seq_put_decimal_ull(m, ' ', i);
+				seq_put_decimal_ull(m, '\0', i);
 
 				last_freqs = freqs;
 			}
@@ -321,7 +321,7 @@ static int concurrent_policy_time_seq_show(struct seq_file *m, void *v)
 		}
 		if (last_freqs) {
 			seq_puts(m, ": ");
-			seq_put_decimal_ull(m, ' ', cnt);
+			seq_put_decimal_ull(m, '\0', cnt);
 			seq_putc(m, '\n');
 		}
 	}
