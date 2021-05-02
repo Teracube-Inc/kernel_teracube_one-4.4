@@ -196,6 +196,7 @@ static char *kicker_name[] = {
 	"KIR_THERMAL",
 	"KIR_FB",
 	"KIR_FBT",
+	"KIR_BOOTUP",
 	"NUM_KICKER",
 
 	"KIR_LATE_INIT",
@@ -205,6 +206,32 @@ static char *kicker_name[] = {
 	"KIR_AUTOK_SD",
 	"LAST_KICKER",
 };
+
+int bootup_kicker_init_opp = OPPI_ULTRA_LOW_PWR;
+
+int vcorefs_bootup_get_init_opp(void)
+{
+	return bootup_kicker_init_opp;
+}
+
+void vcorefs_bootup_set_init_opp(int opp)
+{
+	vcorefs_info("bootup_set_init_opp(%d)\n", opp);
+	bootup_kicker_init_opp = opp;
+}
+bool vcorefs_request_init_opp(int kicker, int opp)
+{
+	bool accept = false;
+
+	mutex_lock(&governor_mutex);
+	if (kicker == KIR_BOOTUP) {
+		bootup_kicker_init_opp = opp;
+		vcorefs_crit_mask(log_mask(), kicker, "init_opp request(kr:%d, opp:%d)\n", kicker, opp);
+		accept = true;
+	}
+	mutex_unlock(&governor_mutex);
+	return accept;
+}
 
 /*
  * set vcore cmd
@@ -408,6 +435,7 @@ int vcorefs_get_dvfs_kicker_group(int kicker)
 	case KIR_THERMAL:
 	case KIR_FB:
 	case KIR_FBT:
+	case KIR_BOOTUP:
 	default:
 		group = KIR_GROUP_HPM;
 	break;

@@ -50,7 +50,6 @@ enum {
 	SPMFW_LP4X_2CH = 0,
 	SPMFW_LP4X_1CH,
 	SPMFW_LP3_1CH,
-	SPMFW_LP4_2CH_2400,
 };
 #endif
 
