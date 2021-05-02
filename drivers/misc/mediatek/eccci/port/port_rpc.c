@@ -32,8 +32,6 @@
 #include <linux/of_gpio.h>
 #include <linux/of_address.h>
 #include "ccci_config.h"
-#include <mt-plat/mtk_secure_api.h>
-#include <trng.h>
 
 #ifdef FEATURE_INFORM_NFC_VSIM_CHANGE
 #include <mach/mt6605.h>
@@ -63,11 +61,7 @@ static struct gpio_item gpio_mapping_table[] = {
 
 static int get_md_gpio_val(unsigned int num)
 {
-#ifdef CONFIG_PINCTRL_MTK_COMMON
-	return __gpio_get_value(num);
-#else
-	return -1;
-#endif
+	return gpio_get_value(num);
 }
 
 static int get_md_adc_val(unsigned int num)
@@ -735,6 +729,7 @@ static void ccci_rpc_work_helper(struct port_t *port, struct rpc_pkt *pkt,
 			enum CLK_BUF_SWCTRL_STATUS_T swctrl_status[CLKBUF_MAX_COUNT];
 			struct ccci_rpc_clkbuf_input *clkinput;
 			u32 AfcDac;
+			int ret = 0;
 
 			if (pkt_num != 1) {
 				CCCI_ERROR_LOG(md_id, RPC, "invalid parameter for [0x%X]: pkt_num=%d!\n",
@@ -774,8 +769,14 @@ static void ccci_rpc_work_helper(struct port_t *port, struct rpc_pkt *pkt,
 
 				node = of_find_compatible_node(NULL, NULL, "mediatek,rf_clock_buffer");
 				if (node) {
-					of_property_read_u32_array(node, "mediatek,clkbuf-config", vals,
+					ret = of_property_read_u32_array(node, "mediatek,clkbuf-config", vals,
 						CLKBUF_MAX_COUNT);
+
+					if (ret)
+						CCCI_ERROR_LOG(md_id, RPC,
+							"%s get property fail\n",
+							__func__);
+
 				} else {
 					CCCI_ERROR_LOG(md_id, RPC, "%s can't find compatible node\n", __func__);
 				}
@@ -979,32 +980,6 @@ static void ccci_rpc_work_helper(struct port_t *port, struct rpc_pkt *pkt,
 			/* 0xF for failure */
 			memset(output, 0xF, sizeof(struct ccci_rpc_md_dtsi_output));
 			get_md_dtsi_val(input, output);
-			break;
-		}
-	case IPC_RPC_TRNG:
-		{
-			unsigned int trng;
-
-			if (pkt_num != 1) {
-				CCCI_ERROR_LOG(md_id, RPC, "invalid parameter for [0x%X]: pkt_num=%d!\n",
-					     p_rpc_buf->op_id, pkt_num);
-				tmp_data[0] = FS_PARAM_ERROR;
-				pkt_num = 0;
-				pkt[pkt_num].len = sizeof(unsigned int);
-				pkt[pkt_num++].buf = (void *)&tmp_data[0];
-				pkt[pkt_num].len = sizeof(unsigned int);
-				pkt[pkt_num++].buf = (void *)&tmp_data[0];
-				break;
-			}
-			trng = mt_secure_call_ret1(MTK_SIP_KERNEL_GET_RND,
-					TRNG_MAGIC, 0, 0, 0);
-			pkt_num = 0;
-			tmp_data[0] = 0;
-			tmp_data[1] = trng;
-			pkt[pkt_num].len = sizeof(unsigned int);
-			pkt[pkt_num++].buf = (void *)&tmp_data[0];
-			pkt[pkt_num].len = sizeof(unsigned int);
-			pkt[pkt_num++].buf = (void *)&tmp_data[1];
 			break;
 		}
 	case IPC_RPC_IT_OP:

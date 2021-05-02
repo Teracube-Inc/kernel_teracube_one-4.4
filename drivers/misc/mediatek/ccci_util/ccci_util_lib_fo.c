@@ -126,6 +126,7 @@ struct _modem_info {
 static int lk_load_img_err_no[MAX_MD_NUM_AT_LK];
 
 static void __iomem *s_g_lk_inf_base;
+static phys_addr_t s_g_tag_phy_addr;
 static unsigned int s_g_tag_cnt;
 static unsigned int s_g_lk_info_tag_version; /* Note, this for tag info solution version */
 static int s_g_curr_ccci_fo_version; /* Note, this for feature option solution version */
@@ -261,7 +262,7 @@ static int find_ccci_tag_inf(char *name, char *buf, unsigned int size)
 	for (i = 0; i < s_g_tag_cnt; i++) {
 		/* 1. Copy tag */
 		memcpy_fromio(&tag, curr, sizeof(union u_tag));
-		if (s_g_lk_info_tag_version == CCCI_LK_INFO_VER_V2) {
+		if (s_g_lk_info_tag_version >= CCCI_LK_INFO_VER_V2) {
 			snprintf(tag_name, 64, "%s", tag.v2.tag_name);
 			data_offset = tag.v2.data_offset;
 			data_size = tag.v2.data_size;
@@ -762,6 +763,28 @@ static int md3_check_hdr_info_size;
 static int md1_raw_img_size;
 static int md3_raw_img_size;
 
+void __iomem *ccci_map_phy_addr(phys_addr_t phy_addr, unsigned int size)
+{
+	void __iomem *map_addr = NULL;
+	pgprot_t prot;
+
+	phy_addr &= PAGE_MASK;
+	if (!pfn_valid(__phys_to_pfn(phy_addr))) {
+		map_addr = ioremap_wc(phy_addr, size);
+		CCCI_UTIL_INF_MSG(
+			"ioremap_wc: (%lx %p %d)\n",
+			(unsigned long)phy_addr, map_addr, size);
+	} else {
+		prot = pgprot_writecombine(PAGE_KERNEL);
+		map_addr = (void __iomem *)vmap_reserved_mem(
+			phy_addr, size, prot);
+		CCCI_UTIL_INF_MSG(
+			"vmap_reserved_mem: (%lx %p %d)\n",
+			(unsigned long)phy_addr, map_addr, size);
+	}
+	return map_addr;
+}
+
 static void md_chk_hdr_info_parse(void)
 {
 	int ret;
@@ -837,9 +860,9 @@ static void lk_info_parsing_v1(unsigned int *raw_ptr)
 	s_g_lk_info_tag_version = 1;
 	s_g_tag_cnt = (unsigned int)lk_inf.lk_info_tag_num;
 
-	s_g_lk_inf_base = ioremap_nocache((phys_addr_t)lk_inf.lk_info_base_addr, MAX_LK_INFO_SIZE);
+	s_g_lk_inf_base = ccci_map_phy_addr((phys_addr_t)lk_inf.lk_info_base_addr, MAX_LK_INFO_SIZE);
 	if (s_g_lk_inf_base == NULL) {
-		CCCI_UTIL_ERR_MSG("ioremap lk info buf fail\n");
+		CCCI_UTIL_ERR_MSG("remap lk info buf fail\n");
 		s_g_lk_load_img_status |= LK_LOAD_MD_ERR_NO_MD_LOAD;
 	}
 }
@@ -879,12 +902,13 @@ static int lk_info_parsing_v2(unsigned int *raw_ptr)
 		return -1;
 	}
 
+	s_g_tag_phy_addr = (phys_addr_t)lk_inf.lk_info_base_addr;
 	s_g_lk_info_tag_version = (unsigned int)lk_inf.lk_info_version;
 	s_g_tag_cnt = (unsigned int)lk_inf.lk_info_tag_num;
 
-	s_g_lk_inf_base = ioremap_nocache((phys_addr_t)lk_inf.lk_info_base_addr, MAX_LK_INFO_SIZE);
+	s_g_lk_inf_base = ccci_map_phy_addr((phys_addr_t)lk_inf.lk_info_base_addr, MAX_LK_INFO_SIZE);
 	if (s_g_lk_inf_base == NULL) {
-		CCCI_UTIL_ERR_MSG("ioremap lk info buf fail\n");
+		CCCI_UTIL_ERR_MSG("remap lk info buf fail\n");
 		s_g_lk_load_img_status |= LK_LOAD_MD_ERR_NO_MD_LOAD;
 	}
 
@@ -1030,9 +1054,19 @@ _common_process:
 	else
 		parse_meta_boot_arguments(raw_ptr); /* This function must at the end for global var */
 
-	if (s_g_lk_inf_base) {
+	if (s_g_lk_inf_base && s_g_lk_info_tag_version < 3) {
 		memset_io(s_g_lk_inf_base, 0, s_g_tag_inf_size); /* clear memory to zero that used by tag info. */
 		iounmap(s_g_lk_inf_base);
+	} else if (s_g_lk_info_tag_version >= 3) {
+		if (!pfn_valid(__phys_to_pfn(s_g_tag_phy_addr))) {
+			iounmap(s_g_lk_inf_base);
+		} else {
+			vunmap(s_g_lk_inf_base);
+			ret = free_reserved_memory(s_g_tag_phy_addr,
+				s_g_tag_phy_addr + MAX_LK_INFO_SIZE);
+			CCCI_UTIL_INF_MSG(
+				"unmap && free reserved tag result=%d\n", ret);
+		}
 	}
 
 	return 0;

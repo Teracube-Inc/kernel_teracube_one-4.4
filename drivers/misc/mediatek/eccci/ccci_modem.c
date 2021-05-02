@@ -271,8 +271,6 @@ void ccci_md_config(struct ccci_modem *md)
 {
 	phys_addr_t md_resv_mem_addr = 0, md_resv_smem_addr = 0, md1_md3_smem_phy = 0;
 	unsigned int md_resv_mem_size = 0, md_resv_smem_size = 0, md1_md3_smem_size = 0;
-	phys_addr_t base_ap_view_phy;
-	pgprot_t prot;
 	int ret;
 
 	/* setup config */
@@ -290,17 +288,8 @@ void ccci_md_config(struct ccci_modem *md)
 	md->mem_layout.md_bank0.base_ap_view_phy = md_resv_mem_addr;
 	md->mem_layout.md_bank0.size = md_resv_mem_size;
 	/* do not remap whole region, consume too much vmalloc space */
-	base_ap_view_phy = md->mem_layout.md_bank0.base_ap_view_phy;
-	base_ap_view_phy &= PAGE_MASK;
-	if (!pfn_valid(__phys_to_pfn(base_ap_view_phy)))
-		md->mem_layout.md_bank0.base_ap_view_vir =
-			ioremap_wc(md->mem_layout.md_bank0.base_ap_view_phy, MD_IMG_DUMP_SIZE);
-	else {
-		prot = pgprot_noncached(PAGE_KERNEL);
-		md->mem_layout.md_bank0.base_ap_view_vir =
-			(void __iomem *)vmap_reserved_mem(md->mem_layout.md_bank0.base_ap_view_phy,
-							MD_IMG_DUMP_SIZE, prot);
-	}
+	md->mem_layout.md_bank0.base_ap_view_vir =
+		ccci_map_phy_addr(md->mem_layout.md_bank0.base_ap_view_phy, MD_IMG_DUMP_SIZE);
 	/* Share memory */
 	/*
 	 * MD bank4 is remap to nearest 32M aligned address
@@ -319,7 +308,7 @@ void ccci_md_config(struct ccci_modem *md)
 		md->mem_layout.md_bank4_noncacheable_total.base_ap_view_phy = md1_md3_smem_phy;
 	md->mem_layout.md_bank4_noncacheable_total.size = md_resv_smem_size + md1_md3_smem_size;
 	md->mem_layout.md_bank4_noncacheable_total.base_ap_view_vir =
-		ioremap_wc(md->mem_layout.md_bank4_noncacheable_total.base_ap_view_phy,
+		ccci_map_phy_addr(md->mem_layout.md_bank4_noncacheable_total.base_ap_view_phy,
 			md->mem_layout.md_bank4_noncacheable_total.size);
 	md->mem_layout.md_bank4_noncacheable_total.base_md_view_phy =
 		0x40000000 + md->mem_layout.md_bank4_noncacheable_total.base_ap_view_phy -
@@ -332,7 +321,7 @@ void ccci_md_config(struct ccci_modem *md)
 	if (md->mem_layout.md_bank4_cacheable_total.base_ap_view_phy &&
 		md->mem_layout.md_bank4_cacheable_total.size)
 		md->mem_layout.md_bank4_cacheable_total.base_ap_view_vir =
-			ioremap_wc(md->mem_layout.md_bank4_cacheable_total.base_ap_view_phy,
+			ccci_map_phy_addr(md->mem_layout.md_bank4_cacheable_total.base_ap_view_phy,
 				md->mem_layout.md_bank4_cacheable_total.size);
 	else
 		CCCI_ERROR_LOG(md->index, TAG, "get ccb info base:%lx size:%x\n",
