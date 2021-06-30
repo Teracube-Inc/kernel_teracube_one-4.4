@@ -2106,16 +2106,12 @@ void device_shutdown(void)
 		pm_runtime_get_noresume(dev);
 		pm_runtime_barrier(dev);
 
-		if (dev->class && dev->class->shutdown) {
-			if (initcall_debug)
-				dev_info(dev, "shutdown\n");
-			dev->class->shutdown(dev);
-		} else if (dev->bus && dev->bus->shutdown) {
-			if (initcall_debug)
+		if (dev->bus && dev->bus->shutdown) {
+			if (1)
 				dev_info(dev, "shutdown\n");
 			dev->bus->shutdown(dev);
 		} else if (dev->driver && dev->driver->shutdown) {
-			if (initcall_debug)
+			if (1)
 				dev_info(dev, "shutdown\n");
 			dev->driver->shutdown(dev);
 		}

@@ -23,10 +23,48 @@
 #include "clk-mtk.h"
 #include "clk-gate.h"
 
+#if defined(CONFIG_MACH_MT6763)
+/*#define MT_CCF_BRINGUP  1*/
+#elif defined(CONFIG_MACH_MT6759)
+/*#define MT_CCF_BRINGUP*/
+#elif defined(CONFIG_MACH_MT6758)
+/*#define MT_CCF_BRINGUP*/
+#elif defined(CONFIG_MACH_MT6739)
+/*#define MT_CCF_BRINGUP*/
+#elif defined(CONFIG_MACH_MT6771)
+/*#define MT_CCF_BRINGUP*/
+#elif defined(CONFIG_MACH_MT6775)
+/* #define MT_CCF_BRINGUP */
+#endif
+
+#ifdef MT_CCF_BRINGUP
+static int mtk_cg_enabled_dummy(struct clk_hw *hw)
+{
+	return 1;
+}
+
+static int mtk_cg_enable_dummy(struct clk_hw *hw)
+{
+	return 0;
+}
+
+static void mtk_cg_disable_dummy(struct clk_hw *hw)
+{
+}
+
+static int mtk_cg_enable_inv_dummy(struct clk_hw *hw)
+{
+	return 0;
+}
+
+static void mtk_cg_disable_inv_dummy(struct clk_hw *hw)
+{
+}
+#else
 static int mtk_cg_bit_is_cleared(struct clk_hw *hw)
 {
 	struct mtk_clk_gate *cg = to_clk_gate(hw);
-	u32 val;
+	u32 val = 0;
 
 	regmap_read(cg->regmap, cg->sta_ofs, &val);
 
@@ -38,7 +76,7 @@ static int mtk_cg_bit_is_cleared(struct clk_hw *hw)
 static int mtk_cg_bit_is_set(struct clk_hw *hw)
 {
 	struct mtk_clk_gate *cg = to_clk_gate(hw);
-	u32 val;
+	u32 val = 0;
 
 	regmap_read(cg->regmap, cg->sta_ofs, &val);
 
@@ -84,7 +122,21 @@ static void mtk_cg_disable_inv(struct clk_hw *hw)
 {
 	mtk_cg_clr_bit(hw);
 }
+#endif
 
+#ifdef MT_CCF_BRINGUP
+const struct clk_ops mtk_clk_gate_ops_setclr = {
+	.is_enabled	= mtk_cg_enabled_dummy,
+	.enable		= mtk_cg_enable_dummy,
+	.disable	= mtk_cg_disable_dummy,
+};
+
+const struct clk_ops mtk_clk_gate_ops_setclr_inv = {
+	.is_enabled	= mtk_cg_enabled_dummy,
+	.enable		= mtk_cg_enable_inv_dummy,
+	.disable	= mtk_cg_disable_inv_dummy,
+};
+#else
 const struct clk_ops mtk_clk_gate_ops_setclr = {
 	.is_enabled	= mtk_cg_bit_is_cleared,
 	.enable		= mtk_cg_enable,
@@ -96,6 +148,7 @@ const struct clk_ops mtk_clk_gate_ops_setclr_inv = {
 	.enable		= mtk_cg_enable_inv,
 	.disable	= mtk_cg_disable_inv,
 };
+#endif
 
 struct clk * __init mtk_clk_register_gate(
 		const char *name,

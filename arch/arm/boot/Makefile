@@ -35,6 +35,7 @@ else
 DTB_LIST := $(dtb-y)
 endif
 DTB_OBJS := $(addprefix $(obj)/dts/,$(DTB_LIST))
+targets += $(addprefix dts/,$(DTB_LIST))
 
 ifeq ($(CONFIG_XIP_KERNEL),y)
 
@@ -53,7 +54,7 @@ $(obj)/xipImage: FORCE
 	@echo 'Kernel not configured for XIP (CONFIG_XIP_KERNEL!=y)'
 	@false
 
-$(obj)/Image: vmlinux FORCE
+$(obj)/Image: vmlinux $(obj)/mtk.dtb FORCE
 	$(call if_changed,objcopy)
 	@$(kecho) '  Kernel: $@ is ready'
 
@@ -67,6 +68,9 @@ $(obj)/zImage:	$(obj)/compressed/vmlinux FORCE
 $(obj)/zImage-dtb:	$(obj)/zImage $(DTB_OBJS) FORCE
 	$(call if_changed,cat)
 	@echo '  Kernel: $@ is ready'
+
+$(obj)/mtk.dtb: $(DTB_OBJS) FORCE
+	$(call if_changed,cat)
 
 endif
 

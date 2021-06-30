@@ -59,8 +59,8 @@ _BUGVERBOSE_LOCATION(__FILE__, __LINE__)		\
 	unreachable();					\
 } while (0)
 
-#define __WARN_TAINT(taint) 				\
-	__BUG_FLAGS(BUGFLAG_TAINT(taint))
+#define __WARN_TAINT(taint) _BUG_FLAGS(BUGFLAG_TAINT(taint))
+#undef __WARN_TAINT
 
 #define HAVE_ARCH_BUG
 

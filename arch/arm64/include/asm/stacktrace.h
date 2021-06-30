@@ -22,9 +22,6 @@ struct stackframe {
 	unsigned long fp;
 	unsigned long sp;
 	unsigned long pc;
-#ifdef CONFIG_FUNCTION_GRAPH_TRACER
-	unsigned int graph;
-#endif
 };
 
 extern int unwind_frame(struct task_struct *tsk, struct stackframe *frame);

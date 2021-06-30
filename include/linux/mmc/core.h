@@ -136,6 +136,18 @@ struct mmc_request {
 	struct completion	completion;
 	void			(*done)(struct mmc_request *);/* completion function */
 	struct mmc_host		*host;
+#ifdef CONFIG_MTK_EMMC_CQ_SUPPORT
+	struct mmc_async_req	*areq;
+	int			flags;
+	struct list_head	link;
+	struct list_head	hlist;
+#endif
+
+#if defined(CONFIG_MTK_HW_FDE) || defined(CONFIG_HIE)
+	unsigned int            bi_hw_fde;
+	unsigned int            bi_key_idx;
+	bool			is_mmc_req; /* request is from mmc layer */
+#endif
 	ktime_t			io_start;
 #ifdef CONFIG_BLOCK
 	int			lat_hist_enabled;
@@ -192,6 +204,7 @@ extern unsigned int mmc_align_data_size(struct mmc_card *, unsigned int);
 
 extern int __mmc_claim_host(struct mmc_host *host, atomic_t *abort);
 extern void mmc_release_host(struct mmc_host *host);
+extern int mmc_try_claim_host(struct mmc_host *host, unsigned int delay);
 
 extern void mmc_get_card(struct mmc_card *card);
 extern void mmc_put_card(struct mmc_card *card);
@@ -199,6 +212,13 @@ extern void mmc_put_card(struct mmc_card *card);
 extern int mmc_flush_cache(struct mmc_card *);
 
 extern int mmc_detect_card_removed(struct mmc_host *host);
+
+extern int mmc_reinit_oldcard(struct mmc_host *host);
+
+#ifdef CONFIG_MTK_EMMC_CQ_SUPPORT
+extern int mmc_blk_cmdq_switch(struct mmc_card *card, int enable);
+#endif
+
 
 /**
  *	mmc_claim_host - exclusively claim a host

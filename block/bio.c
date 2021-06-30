@@ -590,6 +590,16 @@ void __bio_clone_fast(struct bio *bio, struct bio *bio_src)
 	bio->bi_rw = bio_src->bi_rw;
 	bio->bi_iter = bio_src->bi_iter;
 	bio->bi_io_vec = bio_src->bi_io_vec;
+	bio->bi_crypt_ctx = bio_src->bi_crypt_ctx;
+
+#if defined(CONFIG_MTK_HW_FDE)
+	/*
+	 * MTK PATCH:
+	 * Also clone all hw fde related members.
+	 */
+	bio->bi_hw_fde = bio_src->bi_hw_fde;
+	bio->bi_key_idx = bio_src->bi_key_idx;
+#endif
 
 	bio_clone_blkcg_association(bio, bio_src);
 }
@@ -907,6 +917,9 @@ void bio_advance(struct bio *bio, unsigned bytes)
 		bio_integrity_advance(bio, bytes);
 
 	bio_advance_iter(bio, &bio->bi_iter, bytes);
+
+	/* also advance bc_iv in behind bio for hie */
+	bio->bi_crypt_ctx.bc_iv += (bytes >> PAGE_SHIFT);
 }
 EXPORT_SYMBOL(bio_advance);
 
@@ -1333,7 +1346,7 @@ struct bio *bio_map_user_iov(struct request_queue *q,
 
 			if (len <= 0)
 				break;
-			
+
 			if (bytes > len)
 				bytes = len;
 
@@ -2051,6 +2064,22 @@ void bio_clone_blkcg_association(struct bio *dst, struct bio *src)
 }
 
 #endif /* CONFIG_BLK_CGROUP */
+
+unsigned long bio_bc_iv_get(struct bio *bio)
+{
+	if (bio_bcf_test(bio, BC_IV_CTX))
+		return bio->bi_crypt_ctx.bc_iv;
+
+	if (bio_bcf_test(bio, BC_IV_PAGE_IDX)) {
+		struct page *p;
+
+		p = bio_page(bio);
+		if (p && page_mapping(p))
+			return page_file_index(p);
+	}
+	return BC_INVALD_IV;
+}
+EXPORT_SYMBOL_GPL(bio_bc_iv_get);
 
 static void __init biovec_init_slabs(void)
 {

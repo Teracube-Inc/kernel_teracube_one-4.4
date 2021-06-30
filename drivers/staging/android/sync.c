@@ -71,6 +71,15 @@ static void sync_timeline_free(struct kref *kref)
 	if (obj->ops->release_obj)
 		obj->ops->release_obj(obj);
 
+	#if defined(CONFIG_MACH_MT8167) || defined(CONFIG_MACH_MT8173) || defined(CONFIG_MACH_MT6739)
+	{
+		unsigned long flags;
+		/* WA */
+		spin_lock_irqsave(&obj->child_list_lock, flags);
+		spin_unlock_irqrestore(&obj->child_list_lock, flags);
+	}
+	#endif
+
 	kfree(obj);
 }
 
@@ -153,12 +162,16 @@ EXPORT_SYMBOL(sync_pt_free);
 static struct sync_fence *sync_fence_alloc(int size, const char *name)
 {
 	struct sync_fence *fence;
+	char fence_name[128] = "";
 
 	fence = kzalloc(size, GFP_KERNEL);
 	if (fence == NULL)
 		return NULL;
 
-	fence->file = anon_inode_getfile("sync_fence", &sync_fence_fops,
+	snprintf(fence_name, sizeof(fence_name),
+		 "sync_fence_%s", strcmp(name, "") ? name : "NULL");
+
+	fence->file = anon_inode_getfile(fence_name, &sync_fence_fops,
 					 fence, 0);
 	if (IS_ERR(fence->file))
 		goto err;
@@ -390,7 +403,7 @@ int sync_fence_wait(struct sync_fence *fence, long timeout)
 		return ret;
 	} else if (ret == 0) {
 		if (timeout) {
-			pr_info("fence timeout on [%p] after %dms\n", fence,
+			pr_info("fence timeout on [%pK] after %dms\n", fence,
 				jiffies_to_msecs(timeout));
 			sync_dump();
 		}
@@ -399,7 +412,7 @@ int sync_fence_wait(struct sync_fence *fence, long timeout)
 
 	ret = atomic_read(&fence->status);
 	if (ret) {
-		pr_info("fence error %ld on [%p]\n", ret, fence);
+		pr_info("fence error %ld on [%pK]\n", ret, fence);
 		sync_dump();
 	}
 	return ret;

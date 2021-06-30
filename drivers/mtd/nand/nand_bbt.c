@@ -67,6 +67,7 @@
 #include <linux/vmalloc.h>
 #include <linux/export.h>
 #include <linux/string.h>
+#include <asm/div64.h>
 
 #define BBT_BLOCK_GOOD		0x00
 #define BBT_BLOCK_WORN		0x01
@@ -185,7 +186,7 @@ static int read_bbt(struct mtd_info *mtd, uint8_t *buf, int page, int num,
 	from = ((loff_t)page) << this->page_shift;
 
 	while (totlen) {
-		len = min(totlen, (size_t)(1 << this->bbt_erase_shift));
+		len = min((u32)totlen, (u32)(1 << this->bbt_erase_shift));
 		if (marker_len) {
 			/*
 			 * In case the BBT marker is not in the OOB area it
@@ -323,7 +324,7 @@ static int scan_read_oob(struct mtd_info *mtd, uint8_t *buf, loff_t offs,
 
 	while (len > 0) {
 		ops.datbuf = buf;
-		ops.len = min(len, (size_t)mtd->writesize);
+		ops.len = min_t(u32, len, mtd->writesize);
 		ops.oobbuf = buf + ops.len;
 
 		res = mtd_read_oob(mtd, offs, &ops);
@@ -1153,6 +1154,10 @@ static int nand_update_bbt(struct mtd_info *mtd, loff_t offs)
 	uint8_t *buf;
 	struct nand_bbt_descr *td = this->bbt_td;
 	struct nand_bbt_descr *md = this->bbt_md;
+#if defined(CONFIG_MTK_TLC_NAND_SUPPORT)
+	loff_t temp;
+#endif
+
 
 	if (!this->bbt || !td)
 		return -EINVAL;
@@ -1166,7 +1171,15 @@ static int nand_update_bbt(struct mtd_info *mtd, loff_t offs)
 
 	/* Do we have a bbt per chip? */
 	if (td->options & NAND_BBT_PERCHIP) {
+		#if defined(CONFIG_MTK_TLC_NAND_SUPPORT)
+		temp = mtk_nand_device_size();
+		if (offs >= temp)
+			chip = 1;
+		else
+			chip = 0;
+		#else
 		chip = (int)(offs >> this->chip_shift);
+		#endif
 		chipsel = chip;
 	} else {
 		chip = 0;

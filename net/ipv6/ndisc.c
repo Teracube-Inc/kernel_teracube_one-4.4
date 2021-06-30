@@ -1156,6 +1156,13 @@ static void ndisc_router_discovery(struct sk_buff *skb)
 		in6_dev->if_flags |= IF_RA_RCVD;
 	}
 
+	if (sysctl_optr == MTK_IPV6_VZW_ALL ||
+	    sysctl_optr == MTK_IPV6_EX_RS_INTERVAL) {
+		/*add for VzW feature : remove IF_RS_VZW_SENT flag*/
+		if (in6_dev->if_flags & IF_RS_VZW_SENT)
+			in6_dev->if_flags &= ~IF_RS_VZW_SENT;
+	}
+
 	/*
 	 * Remember the managed/otherconf flags from most recently
 	 * received RA message (RFC 2462) -- yoshfuji
@@ -1243,8 +1250,22 @@ static void ndisc_router_discovery(struct sk_buff *skb)
 		rt->rt6i_flags = (rt->rt6i_flags & ~RTF_PREF_MASK) | RTF_PREF(pref);
 	}
 
-	if (rt)
-		rt6_set_expires(rt, jiffies + (HZ * lifetime));
+	if (rt) {
+		/*mtk10127 change
+		 *if route lifetime carried by RA msg equals to 0xFFFF, considering it as infinite
+		 * route lifetime and cleaning route expires. Otherwise, setting route expires
+		 * according to the lifetime value.
+		*/
+		if (lifetime == 0xffff) {
+			rt6_clean_expires(rt);
+			pr_info("[mtk_net]RA: %s, rt %p, clean route expires since lifetime %d infinite\n",
+				__func__, rt, lifetime);
+		} else {
+			rt6_set_expires(rt, jiffies + HZ * lifetime);
+			pr_info("[mtk_net]RA: %s, rt %p, set route expires since lifetime %d finite\n",
+				__func__, rt, lifetime);
+		}
+	}
 	if (in6_dev->cnf.accept_ra_min_hop_limit < 256 &&
 	    ra_msg->icmph.icmp6_hop_limit) {
 		if (in6_dev->cnf.accept_ra_min_hop_limit <= ra_msg->icmph.icmp6_hop_limit) {
@@ -1410,12 +1431,28 @@ skip_routeinfo:
 		}
 	}
 
+	if (in6_dev->if_flags & IF_RA_OTHERCONF) {
+		pr_info("[mtk_net]receive RA with o bit!\n");
+		in6_dev->cnf.ra_info_flag = 1;
+	}
+	if (in6_dev->if_flags & IF_RA_MANAGED) {
+		pr_info("[mtk_net]receive RA with m bit!\n");
+		in6_dev->cnf.ra_info_flag = 2;
+	}
+
 	if (ndopts.nd_useropts) {
 		struct nd_opt_hdr *p;
 		for (p = ndopts.nd_useropts;
 		     p;
 		     p = ndisc_next_useropt(p, ndopts.nd_useropts_end)) {
 			ndisc_ra_useropt(skb, p);
+
+			/* only clear ra_info_flag when O bit is set */
+			 if ((p->nd_opt_type == ND_OPT_RDNSS) && (in6_dev->cnf.ra_info_flag == 1)) {
+				pr_info("[mtk_net]RDNSS, ignore RA with o bit!\n");
+				in6_dev->cnf.ra_info_flag = 0;
+			}
+
 		}
 	}
 

@@ -43,6 +43,7 @@
 #include <linux/slab.h>
 #include <linux/compat.h>
 
+#include <asm/cacheflush.h>
 #include <asm/uaccess.h>
 #include <asm/unistd.h>
 #include <asm/div64.h>
@@ -53,6 +54,10 @@
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/timer.h>
+
+#ifdef CONFIG_MTK_SCHED_MONITOR
+#include "mtk_sched_mon.h"
+#endif
 
 __visible u64 jiffies_64 __cacheline_aligned_in_smp = INITIAL_JIFFIES;
 
@@ -141,13 +146,20 @@ static inline struct tvec_base *get_target_base(struct tvec_base *base,
 		return this_cpu_ptr(&tvec_bases);
 	return per_cpu_ptr(&tvec_bases, get_nohz_timer_target());
 }
+
 #else
 static inline struct tvec_base *get_target_base(struct tvec_base *base,
 						int pinned)
 {
 	return this_cpu_ptr(&tvec_bases);
 }
+
 #endif
+
+static inline struct tvec_base *get_timer_base(u32 timer_flags)
+{
+	return per_cpu_ptr(&tvec_bases, timer_flags & TIMER_CPUMASK);
+}
 
 static unsigned long round_jiffies_common(unsigned long j, int cpu,
 		bool force_up)
@@ -499,6 +511,7 @@ static int timer_fixup_init(void *addr, enum debug_obj_state state)
 
 	switch (state) {
 	case ODEBUG_STATE_ACTIVE:
+		debug_object_mtk_aee_warning("re-init active timer");
 		del_timer_sync(timer);
 		debug_object_init(timer, &timer_debug_descr);
 		return 1;
@@ -537,12 +550,14 @@ static int timer_fixup_activate(void *addr, enum debug_obj_state state)
 			return 0;
 		} else {
 			setup_timer(timer, stub_timer, 0);
+			debug_object_mtk_aee_warning("activate an uninitialized timer");
 			return 1;
 		}
 		return 0;
 
 	case ODEBUG_STATE_ACTIVE:
 		WARN_ON(1);
+		debug_object_mtk_aee_warning("activate an active timer");
 
 	default:
 		return 0;
@@ -561,6 +576,7 @@ static int timer_fixup_free(void *addr, enum debug_obj_state state)
 	case ODEBUG_STATE_ACTIVE:
 		del_timer_sync(timer);
 		debug_object_free(timer, &timer_debug_descr);
+		debug_object_mtk_aee_warning("free an active timer");
 		return 1;
 	default:
 		return 0;
@@ -586,6 +602,7 @@ static int timer_fixup_assert_init(void *addr, enum debug_obj_state state)
 			debug_object_init(timer, &timer_debug_descr);
 			return 0;
 		} else {
+			debug_object_mtk_aee_warning("timer shall be initialized");
 			setup_timer(timer, stub_timer, 0);
 			return 1;
 		}
@@ -774,6 +791,13 @@ static struct tvec_base *lock_timer_base(struct timer_list *timer,
 		 */
 		tf = READ_ONCE(timer->flags);
 
+		/*
+		 * We need to use READ_ONCE() here, otherwise the compiler
+		 * might re-read @tf between the check for TIMER_MIGRATING
+		 * and spin_lock().
+		 */
+		tf = READ_ONCE(timer->flags);
+
 		if (!(tf & TIMER_MIGRATING)) {
 			base = per_cpu_ptr(&tvec_bases, tf & TIMER_CPUMASK);
 			spin_lock_irqsave(&base->lock, *flags);
@@ -825,6 +849,11 @@ __mod_timer(struct timer_list *timer, unsigned long expires,
 				   (timer->flags & ~TIMER_BASEMASK) | base->cpu);
 		}
 	}
+
+	if (pinned == TIMER_PINNED)
+		timer->flags |= TIMER_PINNED_ON_CPU;
+	else
+		timer->flags &= ~TIMER_PINNED_ON_CPU;
 
 	timer->expires = expires;
 	internal_add_timer(base, timer);
@@ -1007,6 +1036,7 @@ void add_timer_on(struct timer_list *timer, int cpu)
 			   (timer->flags & ~TIMER_BASEMASK) | cpu);
 	}
 
+	timer->flags |= TIMER_PINNED_ON_CPU;
 	debug_activate(timer, timer->expires);
 	internal_add_timer(base, timer);
 	spin_unlock_irqrestore(&base->lock, flags);
@@ -1065,6 +1095,28 @@ int try_to_del_timer_sync(struct timer_list *timer)
 		ret = detach_if_pending(timer, base, true);
 	}
 	spin_unlock_irqrestore(&base->lock, flags);
+
+#if defined(CONFIG_SMP) && !defined(CONFIG_ARM64_LSE_ATOMICS)
+
+#ifndef dmac_flush_range
+#define dmac_flush_range __dma_flush_range
+#endif
+
+	/*
+	 * MTK PATCH to fix ARM v8.0 live spinlock issue.
+	 *
+	 * Flush lock value here if timer deletion is not finished.
+	 *
+	 * In this case, Other CPU may need to get cpu_base spinlock
+	 * to update running timer information. Flush lock value here
+	 * to promise that other CPU can see correct lock value to avoid
+	 * starvation or unfair spinlock competition.
+	 */
+	if (ret == -1 && irqs_disabled()) {
+		dmac_flush_range((void *)&base->lock,
+			(void *)&base->lock + sizeof(spinlock_t) - 1);
+	}
+#endif
 
 	return ret;
 }
@@ -1182,7 +1234,13 @@ static void call_timer_fn(struct timer_list *timer, void (*fn)(unsigned long),
 	lock_map_acquire(&lockdep_map);
 
 	trace_timer_expire_entry(timer);
+#ifdef CONFIG_MTK_SCHED_MONITOR
+	mt_trace_sft_start(fn);
+#endif
 	fn(data);
+#ifdef CONFIG_MTK_SCHED_MONITOR
+	mt_trace_sft_end(fn);
+#endif
 	trace_timer_expire_exit(timer);
 
 	lock_map_release(&lockdep_map);
@@ -1482,11 +1540,12 @@ static void process_timeout(unsigned long __data)
  * You can set the task state as follows -
  *
  * %TASK_UNINTERRUPTIBLE - at least @timeout jiffies are guaranteed to
- * pass before the routine returns. The routine will return 0
+ * pass before the routine returns unless the current task is explicitly
+ * woken up, (e.g. by wake_up_process())".
  *
  * %TASK_INTERRUPTIBLE - the routine may return early if a signal is
- * delivered to the current task. In this case the remaining time
- * in jiffies will be returned, or 0 if the timer expired in time
+ * delivered to the current task or the current task is explicitly woken
+ * up.
  *
  * The current task state is guaranteed to be TASK_RUNNING when this
  * routine returns.
@@ -1495,7 +1554,9 @@ static void process_timeout(unsigned long __data)
  * the CPU away without a bound on the timeout. In this case the return
  * value will be %MAX_SCHEDULE_TIMEOUT.
  *
- * In all cases the return value is guaranteed to be non-negative.
+ * Returns 0 when the timer has expired otherwise the remaining time in
+ * jiffies will be returned.  In all cases the return value is guaranteed
+ * to be non-negative.
  */
 signed long __sched schedule_timeout(signed long timeout)
 {
@@ -1574,53 +1635,79 @@ signed long __sched schedule_timeout_uninterruptible(signed long timeout)
 EXPORT_SYMBOL(schedule_timeout_uninterruptible);
 
 #ifdef CONFIG_HOTPLUG_CPU
-static void migrate_timer_list(struct tvec_base *new_base, struct hlist_head *head)
+static void migrate_timer_list(struct tvec_base *new_base,
+			       struct hlist_head *head, bool remove_pinned)
 {
 	struct timer_list *timer;
 	int cpu = new_base->cpu;
+	struct hlist_node *n;
+	int is_pinned;
 
-	while (!hlist_empty(head)) {
-		timer = hlist_entry(head->first, struct timer_list, entry);
-		/* We ignore the accounting on the dying cpu */
-		detach_timer(timer, false);
+	hlist_for_each_entry_safe(timer, n, head, entry) {
+		is_pinned = timer->flags & TIMER_PINNED_ON_CPU;
+		if (!remove_pinned && is_pinned)
+			continue;
+
+		detach_if_pending(timer, get_timer_base(timer->flags), false);
 		timer->flags = (timer->flags & ~TIMER_BASEMASK) | cpu;
 		internal_add_timer(new_base, timer);
 	}
 }
 
-static void migrate_timers(int cpu)
+static void __migrate_timers(int cpu, bool remove_pinned)
 {
 	struct tvec_base *old_base;
 	struct tvec_base *new_base;
+	unsigned long flags;
 	int i;
 
-	BUG_ON(cpu_online(cpu));
 	old_base = per_cpu_ptr(&tvec_bases, cpu);
 	new_base = get_cpu_ptr(&tvec_bases);
 	/*
 	 * The caller is globally serialized and nobody else
 	 * takes two locks at once, deadlock is not possible.
 	 */
-	spin_lock_irq(&new_base->lock);
+	spin_lock_irqsave(&new_base->lock, flags);
 	spin_lock_nested(&old_base->lock, SINGLE_DEPTH_NESTING);
 
-	BUG_ON(old_base->running_timer);
+	/*
+	 * If we're in the hotplug path, kill the system if there's a running
+	 * timer. It's ok to have a running timer in the isolation case - the
+	 * currently running or just expired timers are off of the timer wheel
+	 * and so everything else can be migrated off.
+	 */
+	if (!cpu_online(cpu))
+		WARN_ON(old_base->running_timer);
 
 	for (i = 0; i < TVR_SIZE; i++)
-		migrate_timer_list(new_base, old_base->tv1.vec + i);
+		migrate_timer_list(new_base, old_base->tv1.vec + i,
+				   remove_pinned);
 	for (i = 0; i < TVN_SIZE; i++) {
-		migrate_timer_list(new_base, old_base->tv2.vec + i);
-		migrate_timer_list(new_base, old_base->tv3.vec + i);
-		migrate_timer_list(new_base, old_base->tv4.vec + i);
-		migrate_timer_list(new_base, old_base->tv5.vec + i);
+		migrate_timer_list(new_base, old_base->tv2.vec + i,
+				remove_pinned);
+		migrate_timer_list(new_base, old_base->tv3.vec + i,
+				remove_pinned);
+		migrate_timer_list(new_base, old_base->tv4.vec + i,
+				remove_pinned);
+		migrate_timer_list(new_base, old_base->tv5.vec + i,
+				remove_pinned);
 	}
 
-	old_base->active_timers = 0;
-	old_base->all_timers = 0;
-
 	spin_unlock(&old_base->lock);
-	spin_unlock_irq(&new_base->lock);
+	spin_unlock_irqrestore(&new_base->lock, flags);
 	put_cpu_ptr(&tvec_bases);
+}
+
+/* Migrate timers from 'cpu' to this_cpu */
+static void migrate_timers(int cpu)
+{
+	WARN_ON(cpu_online(cpu));
+	__migrate_timers(cpu, true);
+}
+
+void timer_quiesce_cpu(void *cpup)
+{
+	__migrate_timers(*(int *)cpup, false);
 }
 
 static int timer_cpu_notify(struct notifier_block *self,

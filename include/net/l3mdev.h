@@ -187,7 +187,6 @@ static inline int l3mdev_master_ifindex(struct net_device *dev)
 {
 	return 0;
 }
-
 static inline int l3mdev_master_ifindex_by_index(struct net *net, int ifindex)
 {
 	return 0;

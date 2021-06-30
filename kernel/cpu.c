@@ -29,6 +29,10 @@
 
 #include "smpboot.h"
 
+#ifdef CONFIG_MTK_SCHED_MONITOR
+#include "mtk_sched_mon.h"
+#endif
+
 #ifdef CONFIG_SMP
 /* Serializes the updates to cpu_online_mask, cpu_present_mask */
 static DEFINE_MUTEX(cpu_add_remove_lock);
@@ -52,7 +56,12 @@ void cpu_maps_update_done(void)
 }
 EXPORT_SYMBOL(cpu_notifier_register_done);
 
-static RAW_NOTIFIER_HEAD(cpu_chain);
+#if defined(CONFIG_MTK_CPU_HOTPLUG_DEBUG_1) || \
+	defined(CONFIG_MTK_CPU_HOTPLUG_DEBUG_2)
+RAW_NOTIFIER_HEAD(cpu_chain);
+#else
+RAW_NOTIFIER_HEAD(cpu_chain);
+#endif
 
 /* If set, cpu_up and cpu_down will return -EBUSY and do nothing.
  * Should always be manipulated under cpu_add_remove_lock
@@ -200,6 +209,17 @@ void cpu_hotplug_enable(void)
 	cpu_maps_update_done();
 }
 EXPORT_SYMBOL_GPL(cpu_hotplug_enable);
+
+bool cpu_hotplugging(void)
+{
+	bool ret = false;
+
+	if (cpu_hotplug_disabled == 1)
+		ret = true;
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(cpu_hotplugging);
 #endif	/* CONFIG_HOTPLUG_CPU */
 
 /*
@@ -212,7 +232,30 @@ void __weak arch_smt_update(void) { }
 int register_cpu_notifier(struct notifier_block *nb)
 {
 	int ret;
+#ifdef CONFIG_MTK_CPU_HOTPLUG_DEBUG_0
+	int index = 0;
+#ifdef CONFIG_KALLSYMS
+	char namebuf[128] = {0};
+	const char *symname = NULL;
+#endif
+#endif /* CONFIG_MTK_CPU_HOTPLUG_DEBUG_0 */
 	cpu_maps_update_begin();
+#ifdef CONFIG_MTK_CPU_HOTPLUG_DEBUG_0
+#ifdef CONFIG_KALLSYMS
+	symname = kallsyms_lookup((unsigned long)nb->notifier_call,
+			NULL, NULL, NULL, namebuf);
+	if (symname)
+		pr_info("[cpu_ntf] <%02d>%08lx (%s)\n",
+			index++, (unsigned long)nb->notifier_call, symname);
+	else
+		pr_info("[cpu_ntf] <%02d>%08lx\n",
+			index++, (unsigned long)nb->notifier_call);
+#else
+	pr_info("[cpu_ntf] <%02d>%08lx\n",
+		index++, (unsigned long)nb->notifier_call);
+#endif
+#endif /* CONFIG_MTK_CPU_HOTPLUG_DEBUG_0 */
+
 	ret = raw_notifier_chain_register(&cpu_chain, nb);
 	cpu_maps_update_done();
 	return ret;
@@ -344,6 +387,9 @@ static int take_cpu_down(void *_param)
 		return err;
 
 	cpu_notify(CPU_DYING | param->mod, param->hcpu);
+#ifdef CONFIG_MTK_RAM_CONSOLE
+	aee_rr_rec_cpu_dying_ktime(ktime_to_us(ktime_get()));
+#endif
 	/* Give up timekeeping duties */
 	tick_handover_do_timer();
 	/* Park the stopper thread */
@@ -370,7 +416,12 @@ static int _cpu_down(unsigned int cpu, int tasks_frozen)
 
 	cpu_hotplug_begin();
 
+	TIMESTAMP_REC(hotplug_ts_rec, TIMESTAMP_FILTER, cpu, 0, 0, 0);
+
 	err = __cpu_notify(CPU_DOWN_PREPARE | mod, hcpu, -1, &nr_calls);
+#ifdef CONFIG_MTK_RAM_CONSOLE
+	aee_rr_rec_cpu_down_prepare_ktime(ktime_to_us(ktime_get()));
+#endif
 	if (err) {
 		nr_calls--;
 		__cpu_notify(CPU_DOWN_FAILED | mod, hcpu, nr_calls, NULL);
@@ -379,22 +430,11 @@ static int _cpu_down(unsigned int cpu, int tasks_frozen)
 		goto out_release;
 	}
 
-	/*
-	 * By now we've cleared cpu_active_mask, wait for all preempt-disabled
-	 * and RCU users of this state to go away such that all new such users
-	 * will observe it.
-	 *
-	 * For CONFIG_PREEMPT we have preemptible RCU and its sync_rcu() might
-	 * not imply sync_sched(), so wait for both.
-	 *
-	 * Do sync before park smpboot threads to take care the rcu boost case.
-	 */
-	if (IS_ENABLED(CONFIG_PREEMPT))
-		synchronize_rcu_mult(call_rcu, call_rcu_sched);
-	else
-		synchronize_rcu();
+	TIMESTAMP_REC(hotplug_ts_rec, TIMESTAMP_FILTER, cpu, 0, 0, 0);
 
 	smpboot_park_threads(cpu);
+
+	TIMESTAMP_REC(hotplug_ts_rec, TIMESTAMP_FILTER, cpu, 0, 0, 0);
 
 	/*
 	 * Prevent irq alloc/free while the dying cpu reorganizes the
@@ -402,9 +442,6 @@ static int _cpu_down(unsigned int cpu, int tasks_frozen)
 	 */
 	irq_lock_sparse();
 
-	/*
-	 * So now all preempt/rcu users must observe !cpu_active().
-	 */
 	err = stop_machine(take_cpu_down, &tcd_param, cpumask_of(cpu));
 	if (err) {
 		/* CPU didn't die: tell everyone.  Can't complain. */
@@ -412,6 +449,9 @@ static int _cpu_down(unsigned int cpu, int tasks_frozen)
 		irq_unlock_sparse();
 		goto out_release;
 	}
+
+	TIMESTAMP_REC(hotplug_ts_rec, TIMESTAMP_FILTER, cpu, 0, 0, 0);
+
 	BUG_ON(cpu_online(cpu));
 
 	/*
@@ -421,6 +461,9 @@ static int _cpu_down(unsigned int cpu, int tasks_frozen)
 	 *
 	 * Wait for the stop thread to go away.
 	 */
+
+	TIMESTAMP_REC(hotplug_ts_rec, TIMESTAMP_FILTER, cpu, 0, 0, 0);
+
 	while (!per_cpu(cpu_dead_idle, cpu))
 		cpu_relax();
 	smp_mb(); /* Read from cpu_dead_idle before __cpu_die(). */
@@ -430,12 +473,22 @@ static int _cpu_down(unsigned int cpu, int tasks_frozen)
 	irq_unlock_sparse();
 
 	hotplug_cpu__broadcast_tick_pull(cpu);
+
+	TIMESTAMP_REC(hotplug_ts_rec, TIMESTAMP_FILTER, cpu, 0, 0, 0);
+
+#ifdef CONFIG_MTK_SCHED_MONITOR
+	mt_save_irq_counts(CPU_DOWN);
+#endif
+
 	/* This actually kills the CPU. */
 	__cpu_die(cpu);
 
 	/* CPU is completely dead: tell everyone.  Too late to complain. */
 	tick_cleanup_dead_cpu(cpu);
 	cpu_notify_nofail(CPU_DEAD | mod, hcpu);
+#ifdef CONFIG_MTK_RAM_CONSOLE
+	aee_rr_rec_cpu_dead_ktime(ktime_to_us(ktime_get()));
+#endif
 
 	check_for_tasks(cpu);
 
@@ -444,23 +497,71 @@ out_release:
 	trace_sched_cpu_hotplug(cpu, err, 0);
 	if (!err)
 		cpu_notify_nofail(CPU_POST_DEAD | mod, hcpu);
+#ifdef CONFIG_MTK_RAM_CONSOLE
+		aee_rr_rec_cpu_post_dead_ktime(ktime_to_us(ktime_get()));
+#endif
 	arch_smt_update();
 	return err;
 }
+
+#ifdef CONFIG_PROFILE_CPU
+static int _cpu_down_profile(unsigned int cpu, int tasks_frozen, bool debug)
+{
+	int err;
+	ktime_t kt1, kt2;
+	u64 latency;
+
+	kt1 = ktime_get();
+
+	err = _cpu_down(cpu, 0);
+
+	kt2 = ktime_get();
+	latency = (u64) ktime_to_us(ktime_sub(kt2, kt1));
+
+	if (debug) {
+		pr_info("%s(%d): %lld\n", __func__, cpu, latency);
+	} else {
+		cpu_stats[cpu].hotplug_down_time += 1;
+		cpu_stats[cpu].hotplug_down_lat_us += latency;
+		if (cpu_stats[cpu].hotplug_down_lat_max == 0)
+			cpu_stats[cpu].hotplug_down_lat_max = latency;
+		else if (latency > cpu_stats[cpu].hotplug_down_lat_max)
+			cpu_stats[cpu].hotplug_down_lat_max = latency;
+
+		if (cpu_stats[cpu].hotplug_down_lat_min == 0)
+			cpu_stats[cpu].hotplug_down_lat_min = latency;
+		else if (latency < cpu_stats[cpu].hotplug_down_lat_min)
+			cpu_stats[cpu].hotplug_down_lat_min = latency;
+	}
+
+	return err;
+}
+#endif
 
 int cpu_down(unsigned int cpu)
 {
 	int err;
 
+#ifdef CONFIG_MTK_RAM_CONSOLE
+	aee_rr_rec_cpu_caller(get_cpu());
+	put_cpu();
+	aee_rr_rec_cpu_callee(cpu);
+#endif
 	cpu_maps_update_begin();
-
 	if (cpu_hotplug_disabled) {
 		err = -EBUSY;
 		goto out;
 	}
 
-	err = _cpu_down(cpu, 0);
+	BEGIN_TIMESTAMP_REC(hotplug_ts_rec, TIMESTAMP_FILTER, cpu, 0, 0, 0);
 
+#ifdef CONFIG_PROFILE_CPU
+	err = _cpu_down_profile(cpu, 0, 0);
+#else
+	err = _cpu_down(cpu, 0);
+#endif
+
+	END_TIMESTAMP_REC(hotplug_ts_rec, TIMESTAMP_FILTER, cpu, 0, 0, 0);
 out:
 	cpu_maps_update_done();
 	return err;
@@ -525,7 +626,15 @@ static int _cpu_up(unsigned int cpu, int tasks_frozen)
 	if (ret)
 		goto out;
 
+	TIMESTAMP_REC(hotplug_ts_rec, TIMESTAMP_FILTER,  cpu, 0, 0, 0);
+
 	ret = __cpu_notify(CPU_UP_PREPARE | mod, hcpu, -1, &nr_calls);
+#ifdef CONFIG_MTK_RAM_CONSOLE
+	aee_rr_rec_cpu_up_prepare_ktime(ktime_to_us(ktime_get()));
+#endif
+
+	TIMESTAMP_REC(hotplug_ts_rec, TIMESTAMP_FILTER, cpu, 0, 0, 0);
+
 	if (ret) {
 		nr_calls--;
 		pr_warn("%s: attempt to bring up CPU %u failed\n",
@@ -541,7 +650,14 @@ static int _cpu_up(unsigned int cpu, int tasks_frozen)
 	BUG_ON(!cpu_online(cpu));
 
 	/* Now call notifier in preparation. */
+	TIMESTAMP_REC(hotplug_ts_rec, TIMESTAMP_FILTER, cpu, 0, 0, 0);
+
 	cpu_notify(CPU_ONLINE | mod, hcpu);
+#ifdef CONFIG_MTK_RAM_CONSOLE
+	aee_rr_rec_cpu_online_ktime(ktime_to_us(ktime_get()));
+#endif
+
+	TIMESTAMP_REC(hotplug_ts_rec, TIMESTAMP_FILTER, cpu, 0, 0, 0);
 
 out_notify:
 	if (ret != 0)
@@ -553,10 +669,50 @@ out:
 	return ret;
 }
 
+#ifdef CONFIG_PROFILE_CPU
+static int _cpu_up_profile(unsigned int cpu, int tasks_frozen, bool debug)
+{
+	int err;
+	ktime_t kt1, kt2;
+	u64 latency;
+
+	kt1 = ktime_get();
+
+	err = _cpu_up(cpu, 0);
+
+	kt2 = ktime_get();
+	latency = (u64) ktime_to_us(ktime_sub(kt2, kt1));
+
+	if (debug) {
+		pr_info("%s(%d): %lld\n", __func__, cpu, latency);
+	} else {
+		if (cpu_online(cpu)) {
+			cpu_stats[cpu].hotplug_up_time += 1;
+			cpu_stats[cpu].hotplug_up_lat_us += latency;
+			if (cpu_stats[cpu].hotplug_up_lat_max == 0)
+				cpu_stats[cpu].hotplug_up_lat_max = latency;
+			else if (latency > cpu_stats[cpu].hotplug_up_lat_max)
+				cpu_stats[cpu].hotplug_up_lat_max = latency;
+
+			if (cpu_stats[cpu].hotplug_up_lat_min == 0)
+				cpu_stats[cpu].hotplug_up_lat_min = latency;
+			else if (latency < cpu_stats[cpu].hotplug_up_lat_min)
+				cpu_stats[cpu].hotplug_up_lat_min = latency;
+		}
+	}
+
+	return err;
+}
+#endif
 int cpu_up(unsigned int cpu)
 {
 	int err = 0;
 
+#ifdef CONFIG_MTK_RAM_CONSOLE
+	aee_rr_rec_cpu_caller(get_cpu());
+	put_cpu();
+	aee_rr_rec_cpu_callee(cpu);
+#endif
 	if (!cpu_possible(cpu)) {
 		pr_err("can't online cpu %d because it is not configured as may-hotadd at boot time\n",
 		       cpu);
@@ -577,8 +733,15 @@ int cpu_up(unsigned int cpu)
 		goto out;
 	}
 
-	err = _cpu_up(cpu, 0);
+	BEGIN_TIMESTAMP_REC(hotplug_ts_rec, TIMESTAMP_FILTER, cpu, 0, 0, 0);
 
+#ifdef CONFIG_PROFILE_CPU
+	err = _cpu_up_profile(cpu, 0, 0);
+#else
+	err = _cpu_up(cpu, 0);
+#endif
+
+	END_TIMESTAMP_REC(hotplug_ts_rec, TIMESTAMP_FILTER, cpu, 0, 0, 0);
 out:
 	cpu_maps_update_done();
 	return err;
@@ -659,7 +822,7 @@ void enable_nonboot_cpus(void)
 		error = _cpu_up(cpu, 1);
 		trace_suspend_resume(TPS("CPU_ON"), cpu, false);
 		if (!error) {
-			pr_info("CPU%d is up\n", cpu);
+			/*pr_info("CPU%d is up\n", cpu);*/
 			cpu_device = get_cpu_device(cpu);
 			if (!cpu_device)
 				pr_err("%s: failed to get cpu%d device\n",
@@ -752,6 +915,9 @@ void notify_cpu_starting(unsigned int cpu)
 		val = CPU_STARTING_FROZEN;
 #endif /* CONFIG_PM_SLEEP_SMP */
 	cpu_notify(val, (void *)(long)cpu);
+#ifdef CONFIG_MTK_RAM_CONSOLE
+	aee_rr_rec_cpu_starting_ktime(ktime_to_us(ktime_get()));
+#endif
 }
 
 #endif /* CONFIG_SMP */
@@ -805,6 +971,10 @@ static DECLARE_BITMAP(cpu_active_bits, CONFIG_NR_CPUS) __read_mostly;
 const struct cpumask *const cpu_active_mask = to_cpumask(cpu_active_bits);
 EXPORT_SYMBOL(cpu_active_mask);
 
+static DECLARE_BITMAP(cpu_isolated_bits, CONFIG_NR_CPUS) __read_mostly;
+const struct cpumask *const cpu_isolated_mask = to_cpumask(cpu_isolated_bits);
+EXPORT_SYMBOL(cpu_isolated_mask);
+
 void set_cpu_possible(unsigned int cpu, bool possible)
 {
 	if (possible)
@@ -839,6 +1009,14 @@ void set_cpu_active(unsigned int cpu, bool active)
 		cpumask_clear_cpu(cpu, to_cpumask(cpu_active_bits));
 }
 
+void set_cpu_isolated(unsigned int cpu, bool isolated)
+{
+	if (isolated)
+		cpumask_set_cpu(cpu, to_cpumask(cpu_isolated_bits));
+	else
+		cpumask_clear_cpu(cpu, to_cpumask(cpu_isolated_bits));
+}
+
 void init_cpu_present(const struct cpumask *src)
 {
 	cpumask_copy(to_cpumask(cpu_present_bits), src);
@@ -854,6 +1032,10 @@ void init_cpu_online(const struct cpumask *src)
 	cpumask_copy(to_cpumask(cpu_online_bits), src);
 }
 
+void init_cpu_isolated(const struct cpumask *src)
+{
+	cpumask_copy(to_cpumask(cpu_isolated_bits), src);
+}
 enum cpu_mitigations cpu_mitigations = CPU_MITIGATIONS_AUTO;
 
 static int __init mitigations_parse_cmdline(char *arg)

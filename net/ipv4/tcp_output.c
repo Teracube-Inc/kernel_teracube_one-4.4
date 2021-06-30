@@ -2124,8 +2124,12 @@ static bool tcp_write_xmit(struct sock *sk, unsigned int mss_now, int nonagle,
 		 * of queued bytes to ensure line rate.
 		 * One example is wifi aggregation (802.11 AMPDU)
 		 */
-		limit = max(2 * skb->truesize, sk->sk_pacing_rate >> 10);
-		limit = min_t(u32, limit, sysctl_tcp_limit_output_bytes);
+
+		/* modify for ALPS02852905  *************************************** */
+		/* limit = max(2 * skb->truesize, sk->sk_pacing_rate >> 10);*/
+		/* limit = min_t(u32, limit, sysctl_tcp_limit_output_bytes);*/
+		limit = max_t(unsigned int, sysctl_tcp_limit_output_bytes, sk->sk_pacing_rate >> 10);
+		/* ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
 
 		if (atomic_read(&sk->sk_wmem_alloc) > limit) {
 			set_bit(TSQ_THROTTLED, &tp->tsq_flags);
@@ -2223,7 +2227,7 @@ bool tcp_schedule_loss_probe(struct sock *sk)
 	}
 
 	inet_csk_reset_xmit_timer(sk, ICSK_TIME_LOSS_PROBE, timeout,
-				  TCP_RTO_MAX);
+				  sysctl_tcp_rto_max);
 	return true;
 }
 
@@ -2836,7 +2840,7 @@ begin_fwd:
 		if (skb == tcp_write_queue_head(sk))
 			inet_csk_reset_xmit_timer(sk, ICSK_TIME_RETRANS,
 						  inet_csk(sk)->icsk_rto,
-						  TCP_RTO_MAX);
+						  sysctl_tcp_rto_max);
 	}
 }
 
@@ -3309,7 +3313,7 @@ int tcp_connect(struct sock *sk)
 
 	/* Timer for repeating the SYN until an answer. */
 	inet_csk_reset_xmit_timer(sk, ICSK_TIME_RETRANS,
-				  inet_csk(sk)->icsk_rto, TCP_RTO_MAX);
+				  inet_csk(sk)->icsk_rto, sysctl_tcp_rto_max);
 	return 0;
 }
 EXPORT_SYMBOL(tcp_connect);
@@ -3389,7 +3393,7 @@ void __tcp_send_ack(struct sock *sk, u32 rcv_nxt)
 		inet_csk_schedule_ack(sk);
 		inet_csk(sk)->icsk_ack.ato = TCP_ATO_MIN;
 		inet_csk_reset_xmit_timer(sk, ICSK_TIME_DACK,
-					  TCP_DELACK_MAX, TCP_RTO_MAX);
+					  TCP_DELACK_MAX, sysctl_tcp_rto_max);
 		return;
 	}
 
@@ -3523,7 +3527,7 @@ void tcp_send_probe0(struct sock *sk)
 		if (icsk->icsk_backoff < sysctl_tcp_retries2)
 			icsk->icsk_backoff++;
 		icsk->icsk_probes_out++;
-		probe_max = TCP_RTO_MAX;
+		probe_max = sysctl_tcp_rto_max;
 	} else {
 		/* If packet was not sent due to local congestion,
 		 * do not backoff and do not remember icsk_probes_out.
@@ -3537,7 +3541,7 @@ void tcp_send_probe0(struct sock *sk)
 	}
 	inet_csk_reset_xmit_timer(sk, ICSK_TIME_PROBE0,
 				  tcp_probe0_when(sk, probe_max),
-				  TCP_RTO_MAX);
+				  sysctl_tcp_rto_max);
 }
 
 int tcp_rtx_synack(const struct sock *sk, struct request_sock *req)

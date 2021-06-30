@@ -283,6 +283,20 @@ bad_key:
 
 static struct ctl_table ipv4_table[] = {
 	{
+		.procname = "tcp_rto_min",
+		.data = &sysctl_tcp_rto_min,
+		.maxlen = sizeof(int),
+		.mode = 0644,
+		.proc_handler = proc_dointvec_ms_jiffies,
+	},
+	{
+		.procname = "tcp_rto_max",
+		.data = &sysctl_tcp_rto_max,
+		.maxlen = sizeof(int),
+		.mode = 0644,
+		.proc_handler = proc_dointvec_ms_jiffies,
+	},
+	{
 		.procname	= "tcp_timestamps",
 		.data		= &sysctl_tcp_timestamps,
 		.maxlen		= sizeof(int),
@@ -835,6 +849,29 @@ static struct ctl_table ipv4_table[] = {
 		.proc_handler	= proc_dointvec_minmax,
 		.extra1		= &one
 	},
+#ifdef UDP_SKT_WIFI
+	{
+		.procname	= "udp_met_port",
+		.data		= &sysctl_udp_met_port,
+		.maxlen		= sizeof(int),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec
+	},
+	{
+		.procname	= "met_is_enable",
+		.data		= &sysctl_met_is_enable,
+		.maxlen		= sizeof(int),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec
+	},
+#endif
+	{
+		.procname	= "tcp_ack_number",
+		.data		= &sysctl_tcp_ack_number,
+		.maxlen		= sizeof(int),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec
+		},
 	{ }
 };
 

@@ -1342,6 +1342,7 @@ struct xhci_segment {
 	/* private to HCD */
 	struct xhci_segment	*next;
 	dma_addr_t		dma;
+	int sram_flag;
 };
 
 struct xhci_td {
@@ -1639,7 +1640,10 @@ struct xhci_hcd {
 /* For controllers with a broken beyond repair streams implementation */
 #define XHCI_BROKEN_STREAMS	(1 << 19)
 #define XHCI_PME_STUCK_QUIRK	(1 << 20)
+#define XHCI_MTK_HOST		(1 << 21)
 #define XHCI_MISSING_CAS	(1 << 24)
+#define XHCI_DEV_WITH_SYNC_EP	(1 << 31)
+
 	unsigned int		num_active_eps;
 	unsigned int		limit_active_eps;
 	/* There are two roothubs to keep track of bus suspend info for */
@@ -1664,6 +1668,8 @@ struct xhci_hcd {
 	/* Compliance Mode Recovery Data */
 	struct timer_list	comp_mode_recovery_timer;
 	u32			port_status_u0;
+	dma_addr_t		msram_phys_addr;
+	void                    *msram_virt_addr;
 /* Compliance Mode Timer Triggered every 2 seconds */
 #define COMP_MODE_RCVRY_MSECS 2000
 };

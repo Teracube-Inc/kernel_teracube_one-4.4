@@ -68,6 +68,7 @@
 #include <linux/slab.h>
 #include "xhci.h"
 #include "xhci-trace.h"
+#include "xhci-mtk.h"
 
 /*
  * Returns zero if the TRB isn't in this segment, otherwise it returns the DMA
@@ -259,7 +260,11 @@ static inline int room_on_ring(struct xhci_hcd *xhci, struct xhci_ring *ring,
 	if (ring->num_trbs_free < num_trbs)
 		return 0;
 
+#ifdef CONFIG_MTK_UAC_POWER_SAVING
+	if (!(xhci->quirks & XHCI_MTK_HOST))
+#endif
 	if (ring->type != TYPE_COMMAND && ring->type != TYPE_EVENT) {
+
 		num_trbs_in_deq_seg = ring->dequeue - ring->deq_seg->trbs;
 		if (ring->num_trbs_free < num_trbs + num_trbs_in_deq_seg)
 			return 0;
@@ -2410,7 +2415,7 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 		break;
 	case COMP_SPLIT_ERR:
 	case COMP_TX_ERR:
-		xhci_dbg(xhci, "Transfer error on endpoint\n");
+		xhci_warn_ratelimited(xhci, "Transfer error on endpoint %d\n", ep_index);
 		status = -EPROTO;
 		break;
 	case COMP_BABBLE:
@@ -3116,16 +3121,21 @@ static u32 xhci_td_remainder(struct xhci_hcd *xhci, int transferred,
 {
 	u32 maxp, total_packet_count;
 
-	if (xhci->hci_version < 0x100)
+	/* MTK xHCI is mostly 0.97 but contains some features from 1.0 */
+	if (xhci->hci_version < 0x100 && !(xhci->quirks & XHCI_MTK_HOST))
 		return ((td_total_len - transferred) >> 10);
-
-	maxp = GET_MAX_PACKET(usb_endpoint_maxp(&urb->ep->desc));
-	total_packet_count = DIV_ROUND_UP(td_total_len, maxp);
 
 	/* One TRB with a zero-length data packet. */
 	if (num_trbs_left == 0 || (transferred == 0 && trb_buff_len == 0) ||
 	    trb_buff_len == td_total_len)
 		return 0;
+
+	/* for MTK xHCI before v0.96, TD size doesn't include this TRB */
+	if ((xhci->hci_version < 0x100) && (xhci->quirks & XHCI_MTK_HOST))
+		trb_buff_len = 0;
+
+	maxp = GET_MAX_PACKET(usb_endpoint_maxp(&urb->ep->desc));
+	total_packet_count = DIV_ROUND_UP(td_total_len, maxp);
 
 	/* Queueing functions don't count the current TRB into transferred */
 	return (total_packet_count - ((transferred + trb_buff_len) / maxp));
@@ -3514,7 +3524,7 @@ int xhci_queue_ctrl_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
 		field |= 0x1;
 
 	/* xHCI 1.0/1.1 6.4.1.2.1: Transfer Type field */
-	if (xhci->hci_version >= 0x100) {
+	if ((xhci->hci_version >= 0x100) || (xhci->quirks & XHCI_MTK_HOST)) {
 		if (urb->transfer_buffer_length > 0) {
 			if (setup->bRequestType & USB_DIR_IN)
 				field |= TRB_TX_TYPE(TRB_DATA_IN);
@@ -3858,9 +3868,9 @@ static int xhci_queue_isoc_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
 			} else {
 				td->last_trb = ep_ring->enqueue;
 				field |= TRB_IOC;
-				if (xhci->hci_version == 0x100 &&
+				/* if (xhci->hci_version == 0x100 &&
 						!(xhci->quirks &
-							XHCI_AVOID_BEI)) {
+							XHCI_AVOID_BEI)) */ {
 					/* Set BEI bit except for the last td */
 					if (i < num_tds - 1)
 						field |= TRB_BEI;
@@ -3914,6 +3924,31 @@ static int xhci_queue_isoc_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
 
 	giveback_first_trb(xhci, slot_id, ep_index, urb->stream_id,
 			start_cycle, start_trb);
+
+#ifdef CONFIG_MTK_UAC_POWER_SAVING
+	if (!list_empty(&ep_ring->td_list) &&
+		!(xhci->quirks & XHCI_DEV_WITH_SYNC_EP)) {
+		unsigned int idle_ms = 0;
+		unsigned int left_trbs;
+
+		left_trbs = (ep_ring->num_segs * (TRBS_PER_SEGMENT - 1) - 1) -
+				ep_ring->num_trbs_free;
+
+		switch (urb->dev->speed) {
+		case USB_SPEED_SUPER:
+		case USB_SPEED_HIGH:
+			idle_ms = left_trbs * 2 / 3 / 8;
+			break;
+		case USB_SPEED_FULL:
+		case USB_SPEED_LOW:
+		default:
+			idle_ms = left_trbs * 3 / 4;
+			break;
+		}
+		xhci_mtk_allow_sleep(idle_ms);
+	}
+#endif
+
 	return 0;
 cleanup:
 	/* Clean up a partially enqueued isoc transfer. */

@@ -43,10 +43,11 @@
 #include <linux/mpage.h>
 #include <linux/bit_spinlock.h>
 #include <trace/events/block.h>
+#include <linux/hie.h>
 
 static int fsync_buffers_list(spinlock_t *lock, struct list_head *list);
-static int submit_bh_wbc(int rw, struct buffer_head *bh,
-			 unsigned long bio_flags,
+static int submit_bh_wbc_crypt(struct inode *inode, int rw,
+			 struct buffer_head *bh, unsigned long bio_flags,
 			 struct writeback_control *wbc);
 
 #define BH_ENTRY(list) list_entry((list), struct buffer_head, b_assoc_buffers)
@@ -444,7 +445,7 @@ EXPORT_SYMBOL(mark_buffer_async_write);
  * try_to_free_buffers() will be operating against the *blockdev* mapping
  * at the time, not against the S_ISREG file which depends on those buffers.
  * So the locking for private_list is via the private_lock in the address_space
- * which backs the buffers.  Which is different from the address_space 
+ * which backs the buffers.  Which is different from the address_space
  * against which the buffers are listed.  So for a particular address_space,
  * mapping->private_lock does *not* protect mapping->private_list!  In fact,
  * mapping->private_list will always be protected by the backing blockdev's
@@ -720,7 +721,7 @@ EXPORT_SYMBOL(__set_page_dirty_buffers);
  * Do this in two main stages: first we copy dirty buffers to a
  * temporary inode list, queueing the writes as we go.  Then we clean
  * up, waiting for those writes to complete.
- * 
+ *
  * During this second stage, any subsequent updates to the file may end
  * up refiling the buffer on the original inode's dirty list again, so
  * there is a chance we will end up with a buffer queued for write but
@@ -798,7 +799,7 @@ static int fsync_buffers_list(spinlock_t *lock, struct list_head *list)
 		brelse(bh);
 		spin_lock(lock);
 	}
-	
+
 	spin_unlock(lock);
 	err2 = osync_buffers_list(lock, list);
 	if (err)
@@ -908,7 +909,7 @@ no_grow:
 	/*
 	 * Return failure for non-async IO requests.  Async IO requests
 	 * are not allowed to fail, so we have to wait until buffer heads
-	 * become available.  But we don't want tasks sleeping with 
+	 * become available.  But we don't want tasks sleeping with
 	 * partially complete buffers, so all were released above.
 	 */
 	if (!retry)
@@ -917,7 +918,7 @@ no_grow:
 	/* We're _really_ low on memory. Now we just
 	 * wait for old buffer heads to become free due to
 	 * finishing IO.  Since this is an async request and
-	 * the reserve list is empty, we're sure there are 
+	 * the reserve list is empty, we're sure there are
 	 * async buffer heads in use.
 	 */
 	free_more_memory();
@@ -953,7 +954,7 @@ static sector_t blkdev_max_block(struct block_device *bdev, unsigned int size)
 
 /*
  * Initialise the state of a blockdev page's buffers.
- */ 
+ */
 static sector_t
 init_page_buffers(struct page *page, struct block_device *bdev,
 			sector_t block, int size)
@@ -1091,6 +1092,10 @@ struct buffer_head *
 __getblk_slow(struct block_device *bdev, sector_t block,
 	     unsigned size, gfp_t gfp)
 {
+#ifdef CONFIG_ZONE_MOVABLE_CMA
+	/* __GFP_MOVABLE is not allowed for buffer_head */
+	gfp &= ~__GFP_MOVABLE;
+#endif
 	/* Size must be multiple of hard sectorsize */
 	if (unlikely(size & (bdev_logical_block_size(bdev)-1) ||
 			(size < 512 || size > PAGE_SIZE))) {
@@ -1457,7 +1462,7 @@ static bool has_bh_in_lru(int cpu, void *dummy)
 {
 	struct bh_lru *b = per_cpu_ptr(&bh_lrus, cpu);
 	int i;
-	
+
 	for (i = 0; i < BH_LRU_SIZE; i++) {
 		if (b->bhs[i])
 			return 1;
@@ -1797,7 +1802,7 @@ static int __block_write_full_page(struct inode *inode, struct page *page,
 	do {
 		struct buffer_head *next = bh->b_this_page;
 		if (buffer_async_write(bh)) {
-			submit_bh_wbc(write_op, bh, 0, wbc);
+			submit_bh_wbc_crypt(inode, write_op, bh, 0, wbc);
 			nr_underway++;
 		}
 		bh = next;
@@ -1851,7 +1856,7 @@ recover:
 		struct buffer_head *next = bh->b_this_page;
 		if (buffer_async_write(bh)) {
 			clear_buffer_dirty(bh);
-			submit_bh_wbc(write_op, bh, 0, wbc);
+			submit_bh_wbc_crypt(inode, write_op, bh, 0, wbc);
 			nr_underway++;
 		}
 		bh = next;
@@ -1961,7 +1966,7 @@ int __block_write_begin(struct page *page, loff_t pos, unsigned len,
 		if (PageUptodate(page)) {
 			if (!buffer_uptodate(bh))
 				set_buffer_uptodate(bh);
-			continue; 
+			continue;
 		}
 		if (!buffer_uptodate(bh) && !buffer_delay(bh) &&
 		    !buffer_unwritten(bh) &&
@@ -2267,7 +2272,7 @@ EXPORT_SYMBOL(block_read_full_page);
 
 /* utility function for filesystems that need to do work on expanding
  * truncates.  Uses filesystem pagecache writes to allow the filesystem to
- * deal with the hole.  
+ * deal with the hole.
  */
 int generic_cont_expand_simple(struct inode *inode, loff_t size)
 {
@@ -2828,7 +2833,7 @@ int block_truncate_page(struct address_space *mapping,
 
 	length = blocksize - length;
 	iblock = (sector_t)index << (PAGE_CACHE_SHIFT - inode->i_blkbits);
-	
+
 	page = grab_cache_page(mapping, index);
 	err = -ENOMEM;
 	if (!page)
@@ -3003,10 +3008,11 @@ void guard_bio_eod(int rw, struct bio *bio)
 	}
 }
 
-static int submit_bh_wbc(int rw, struct buffer_head *bh,
-			 unsigned long bio_flags, struct writeback_control *wbc)
+int submit_bh_wbc_crypt(struct inode *inode, int rw, struct buffer_head *bh,
+		     unsigned long bio_flags, struct writeback_control *wbc)
 {
 	struct bio *bio;
+	int ret = 0;
 
 	BUG_ON(!buffer_locked(bh));
 	BUG_ON(!buffer_mapped(bh));
@@ -3041,6 +3047,9 @@ static int submit_bh_wbc(int rw, struct buffer_head *bh,
 	bio->bi_private = bh;
 	bio->bi_flags |= bio_flags;
 
+	if (inode)
+		hie_set_bio_crypt_context(inode, bio);
+
 	/* Take care of bh's that straddle the end of the device */
 	guard_bio_eod(rw, bio);
 
@@ -3050,18 +3059,25 @@ static int submit_bh_wbc(int rw, struct buffer_head *bh,
 		rw |= REQ_PRIO;
 
 	submit_bio(rw, bio);
-	return 0;
+
+	return ret;
 }
 
 int _submit_bh(int rw, struct buffer_head *bh, unsigned long bio_flags)
 {
-	return submit_bh_wbc(rw, bh, bio_flags, NULL);
+	return submit_bh_wbc_crypt(NULL, rw, bh, bio_flags, NULL);
 }
 EXPORT_SYMBOL_GPL(_submit_bh);
 
+int submit_bh_crypt(struct inode *inode, int rw, struct buffer_head *bh)
+{
+	return submit_bh_wbc_crypt(inode, rw, bh, 0, NULL);
+}
+EXPORT_SYMBOL(submit_bh_crypt);
+
 int submit_bh(int rw, struct buffer_head *bh)
 {
-	return submit_bh_wbc(rw, bh, 0, NULL);
+	return submit_bh_wbc_crypt(NULL, rw, bh, 0, NULL);
 }
 EXPORT_SYMBOL(submit_bh);
 
@@ -3085,12 +3101,13 @@ EXPORT_SYMBOL(submit_bh);
  *
  * ll_rw_block sets b_end_io to simple completion handler that marks
  * the buffer up-to-date (if appropriate), unlocks the buffer and wakes
- * any waiters. 
+ * any waiters.
  *
  * All of the buffers must be for the same device, and must also be a
  * multiple of the current approved size for the device.
  */
-void ll_rw_block(int rw, int nr, struct buffer_head *bhs[])
+void ll_rw_block_crypt(struct inode *inode, int rw, int nr,
+		       struct buffer_head *bhs[])
 {
 	int i;
 
@@ -3110,12 +3127,18 @@ void ll_rw_block(int rw, int nr, struct buffer_head *bhs[])
 			if (!buffer_uptodate(bh)) {
 				bh->b_end_io = end_buffer_read_sync;
 				get_bh(bh);
-				submit_bh(rw, bh);
+				submit_bh_crypt(inode, rw, bh);
 				continue;
 			}
 		}
 		unlock_buffer(bh);
 	}
+}
+EXPORT_SYMBOL(ll_rw_block_crypt);
+
+void ll_rw_block(int rw, int nr, struct buffer_head *bhs[])
+{
+	ll_rw_block_crypt(NULL, rw, nr, bhs);
 }
 EXPORT_SYMBOL(ll_rw_block);
 
@@ -3392,13 +3415,7 @@ int bh_uptodate_or_lock(struct buffer_head *bh)
 }
 EXPORT_SYMBOL(bh_uptodate_or_lock);
 
-/**
- * bh_submit_read - Submit a locked buffer for reading
- * @bh: struct buffer_head
- *
- * Returns zero on success and -EIO on error.
- */
-int bh_submit_read(struct buffer_head *bh)
+int bh_submit_read_crypt(struct inode *inode, struct buffer_head *bh)
 {
 	BUG_ON(!buffer_locked(bh));
 
@@ -3409,11 +3426,23 @@ int bh_submit_read(struct buffer_head *bh)
 
 	get_bh(bh);
 	bh->b_end_io = end_buffer_read_sync;
-	submit_bh(READ, bh);
+	submit_bh_crypt(inode, READ, bh);
 	wait_on_buffer(bh);
 	if (buffer_uptodate(bh))
 		return 0;
 	return -EIO;
+}
+EXPORT_SYMBOL(bh_submit_read_crypt);
+
+/**
+ * bh_submit_read - Submit a locked buffer for reading
+ * @bh: struct buffer_head
+ *
+ * Returns zero on success and -EIO on error.
+ */
+int bh_submit_read(struct buffer_head *bh)
+{
+	return bh_submit_read_crypt(NULL, bh);
 }
 EXPORT_SYMBOL(bh_submit_read);
 

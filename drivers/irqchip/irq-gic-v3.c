@@ -142,7 +142,7 @@ static void gic_enable_redist(bool enable)
 			return;	/* No PM support in this redistributor */
 	}
 
-	while (--count) {
+	while (count--) {
 		val = readl_relaxed(rbase + GICR_WAKER);
 		if (enable ^ (val & GICR_WAKER_ChildrenAsleep))
 			break;
@@ -284,6 +284,11 @@ static void gic_eoimode1_eoi_irq(struct irq_data *d)
 	gic_write_dir(gic_irq(d));
 }
 
+/* should be define in mtk-gic-v3-extend.c */
+__weak void _mt_irq_set_polarity(unsigned int irq, unsigned int polarity)
+{
+}
+
 static int gic_set_type(struct irq_data *d, unsigned int type)
 {
 	unsigned int irq = gic_irq(d);
@@ -294,11 +299,20 @@ static int gic_set_type(struct irq_data *d, unsigned int type)
 	if (irq < 16)
 		return -EINVAL;
 
-	/* SPIs have restrictions on the supported types */
+#ifndef CONFIG_MTK_SYSIRQ
+	/* setup polarity registers */
+	if (type & (IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING))
+		_mt_irq_set_polarity(irq,
+			(type & IRQF_TRIGGER_FALLING) ? 0 : 1);
+	else if (type & (IRQF_TRIGGER_HIGH | IRQF_TRIGGER_LOW))
+		_mt_irq_set_polarity(irq,
+			(type & IRQF_TRIGGER_LOW) ? 0 : 1);
+#else
+		/* SPIs have restrictions on the supported types */
 	if (irq >= 32 && type != IRQ_TYPE_LEVEL_HIGH &&
-			 type != IRQ_TYPE_EDGE_RISING)
+			type != IRQ_TYPE_EDGE_RISING)
 		return -EINVAL;
-
+#endif
 	if (gic_irq_in_rdist(d)) {
 		base = gic_data_rdist_sgi_base();
 		rwp_wait = gic_redist_wait_for_rwp;
@@ -380,7 +394,9 @@ static asmlinkage void __exception_irq_entry gic_handle_irq(struct pt_regs *regs
 static void __init gic_dist_init(void)
 {
 	unsigned int i;
+#ifndef CONFIG_MTK_IRQ_NEW_DESIGN
 	u64 affinity;
+#endif
 	void __iomem *base = gic_data.dist_base;
 
 	/* Disable the distributor */
@@ -402,6 +418,7 @@ static void __init gic_dist_init(void)
 	writel_relaxed(GICD_CTLR_ARE_NS | GICD_CTLR_ENABLE_G1A | GICD_CTLR_ENABLE_G1,
 		       base + GICD_CTLR);
 
+#ifndef CONFIG_MTK_IRQ_NEW_DESIGN
 	/*
 	 * Set all global interrupts to the boot CPU only. ARE must be
 	 * enabled.
@@ -409,6 +426,13 @@ static void __init gic_dist_init(void)
 	affinity = gic_mpidr_to_affinity(cpu_logical_map(smp_processor_id()));
 	for (i = 32; i < gic_data.irq_nr; i++)
 		gic_write_irouter(affinity, base + GICD_IROUTER + i * 8);
+#else
+	/* default set target all for all SPI */
+	for (i = 32; i < gic_data.irq_nr; i++)
+		gic_write_irouter(GICD_IROUTER_SPI_MODE_ANY,
+				base + GICD_IROUTER + i * 8);
+#endif
+
 }
 
 static int gic_populate_rdist(void)
@@ -444,9 +468,11 @@ static int gic_populate_rdist(void)
 				u64 offset = ptr - gic_data.redist_regions[i].redist_base;
 				gic_data_rdist_rd_base() = ptr;
 				gic_data_rdist()->phys_base = gic_data.redist_regions[i].phys_base + offset;
+#if 0
 				pr_info("CPU%d: found redistributor %lx region %d:%pa\n",
 					smp_processor_id(), mpidr, i,
 					&gic_data_rdist()->phys_base);
+#endif
 				return 0;
 			}
 
@@ -491,6 +517,11 @@ static void gic_cpu_sys_reg_init(void)
 
 	/* ... and let's hit the road... */
 	gic_write_grpen1(1);
+}
+
+void mt_gic_cpu_init_for_low_power(void)
+{
+	gic_cpu_sys_reg_init();
 }
 
 static int gic_dist_supports_lpis(void)
@@ -544,7 +575,7 @@ static struct notifier_block gic_cpu_notifier = {
 static u16 gic_compute_target_list(int *base_cpu, const struct cpumask *mask,
 				   unsigned long cluster_id)
 {
-	int next_cpu, cpu = *base_cpu;
+	int cpu = *base_cpu;
 	unsigned long mpidr = cpu_logical_map(cpu);
 	u16 tlist = 0;
 
@@ -558,10 +589,9 @@ static u16 gic_compute_target_list(int *base_cpu, const struct cpumask *mask,
 
 		tlist |= 1 << (mpidr & 0xf);
 
-		next_cpu = cpumask_next(cpu, mask);
-		if (next_cpu >= nr_cpu_ids)
+		cpu = cpumask_next(cpu, mask);
+		if (cpu >= nr_cpu_ids)
 			goto out;
-		cpu = next_cpu;
 
 		mpidr = cpu_logical_map(cpu);
 
@@ -632,9 +662,7 @@ static int gic_set_affinity(struct irq_data *d, const struct cpumask *mask_val,
 	int enabled;
 	u64 val;
 
-	if (cpu >= nr_cpu_ids)
-		return -EINVAL;
-
+#ifndef CONFIG_MTK_IRQ_NEW_DESIGN
 	if (gic_irq_in_rdist(d))
 		return -EINVAL;
 
@@ -658,6 +686,50 @@ static int gic_set_affinity(struct irq_data *d, const struct cpumask *mask_val,
 		gic_dist_wait_for_rwp();
 
 	return IRQ_SET_MASK_OK;
+#else
+	/*
+	 * no need to update when:
+	 * input mask is equal to the current setting
+	 */
+	if (cpumask_equal(d->common->affinity, mask_val))
+		return IRQ_SET_MASK_OK_NOCOPY;
+
+	/*
+	 * cpumask_first_and() returns >= nr_cpu_ids when the intersection
+	 * of inputs is an empty set -> return error when this is not a "forced" update
+	 */
+	if (!force && (cpumask_first_and(mask_val, cpu_online_mask) >= nr_cpu_ids))
+		return -EINVAL;
+
+	if (gic_irq_in_rdist(d))
+		return -EINVAL;
+
+	/* If interrupt was enabled, disable it first */
+	enabled = gic_peek_irq(d, GICD_ISENABLER);
+	if (enabled)
+		gic_mask_irq(d);
+
+	reg = gic_dist_base(d) + GICD_IROUTER + (gic_irq(d) * 8);
+
+	/* GICv3 supports target is 1 or all */
+	if (cpumask_weight(mask_val) > 1)
+		val = GICD_IROUTER_SPI_MODE_ANY;
+	else
+		val = gic_mpidr_to_affinity(cpu_logical_map(cpu));
+
+	gic_write_irouter(val, reg);
+
+	/*
+	 * If the interrupt was enabled, enabled it again. Otherwise,
+	 * just wait for the distributor to have digested our changes.
+	 */
+	if (enabled)
+		gic_unmask_irq(d);
+	else
+		gic_dist_wait_for_rwp();
+
+	return IRQ_SET_MASK_OK;
+#endif
 }
 #else
 #define gic_set_affinity	NULL
@@ -834,6 +906,15 @@ static void gicv3_enable_quirks(void)
 #endif
 }
 
+static int mt_gic_irqs;
+#ifndef CONFIG_MTK_GIC
+int mt_get_supported_irq_num(void)
+{
+	return mt_gic_irqs;
+}
+#endif
+__weak int __init mt_gic_ext_init(void) { return 0; }
+
 static int __init gic_of_init(struct device_node *node, struct device_node *parent)
 {
 	void __iomem *dist_base;
@@ -930,6 +1011,9 @@ static int __init gic_of_init(struct device_node *node, struct device_node *pare
 	gic_dist_init();
 	gic_cpu_init();
 	gic_cpu_pm_init();
+
+	mt_gic_ext_init();
+	mt_gic_irqs = gic_data.irq_nr;
 
 	return 0;
 

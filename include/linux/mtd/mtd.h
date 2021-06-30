@@ -37,6 +37,21 @@
 
 #define MTD_FAIL_ADDR_UNKNOWN -1LL
 
+#ifdef CONFIG_MTK_MTD_NAND
+#ifndef CONFIG_MTD_DEBUG
+#define CONFIG_MTD_DEBUG 1
+#endif
+#ifndef CONFIG_MTD_DEBUG_VERBOSE
+#define CONFIG_MTD_DEBUG_VERBOSE 0
+#endif
+
+/*
+ * NSS (Nand Speedup Strategy) Configurations
+ */
+
+#define CONFIG_MTK_NSS_CACHEV_MAX_CNT (4)
+
+#endif
 /*
  * If the erase fails, fail_addr might indicate exactly which block failed. If
  * fail_addr = MTD_FAIL_ADDR_UNKNOWN, the failure was not at the device level
@@ -224,7 +239,11 @@ struct mtd_info {
 	int (*_is_locked) (struct mtd_info *mtd, loff_t ofs, uint64_t len);
 	int (*_block_isreserved) (struct mtd_info *mtd, loff_t ofs);
 	int (*_block_isbad) (struct mtd_info *mtd, loff_t ofs);
-	int (*_block_markbad) (struct mtd_info *mtd, loff_t ofs);
+#if defined(CONFIG_MTK_TLC_NAND_SUPPORT)
+	int (*_block_markbad)(struct mtd_info *mtd, loff_t ofs, const uint8_t *buffer);
+#else
+	int (*_block_markbad)(struct mtd_info *mtd, loff_t ofs);
+#endif
 	int (*_suspend) (struct mtd_info *mtd);
 	void (*_resume) (struct mtd_info *mtd);
 	void (*_reboot) (struct mtd_info *mtd);
@@ -307,6 +326,7 @@ int mtd_is_locked(struct mtd_info *mtd, loff_t ofs, uint64_t len);
 int mtd_block_isreserved(struct mtd_info *mtd, loff_t ofs);
 int mtd_block_isbad(struct mtd_info *mtd, loff_t ofs);
 int mtd_block_markbad(struct mtd_info *mtd, loff_t ofs);
+int mtd_block_markbad_hw(struct mtd_info *mtd, loff_t ofs, const uint8_t *buf);
 
 static inline int mtd_suspend(struct mtd_info *mtd)
 {
@@ -396,6 +416,9 @@ extern int unregister_mtd_user (struct mtd_notifier *old);
 void *mtd_kmalloc_up_to(const struct mtd_info *mtd, size_t *size);
 
 void mtd_erase_callback(struct erase_info *instr);
+
+extern void nand_release_device(struct mtd_info *mtd);
+extern int nand_get_device(struct mtd_info *mtd, int new_state);
 
 static inline int mtd_is_bitflip(int err) {
 	return err == -EUCLEAN;

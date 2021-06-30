@@ -609,7 +609,7 @@ static void reqsk_timer_handler(unsigned long data)
 
 		if (req->num_timeout++ == 0)
 			atomic_dec(&queue->young);
-		timeo = min(TCP_TIMEOUT_INIT << req->num_timeout, TCP_RTO_MAX);
+		timeo = min(TCP_TIMEOUT_INIT << req->num_timeout, sysctl_tcp_rto_max);
 		mod_timer_pinned(&req->rsk_timer, jiffies + timeo);
 		return;
 	}
@@ -754,6 +754,10 @@ int inet_csk_listen_start(struct sock *sk, int backlog)
 	if (!sk->sk_prot->get_port(sk, inet->inet_num)) {
 		inet->inet_sport = htons(inet->inet_num);
 
+#ifdef CONFIG_MTK_NET_LOGGING
+	pr_info("[mtk_net][socket] inet_csk_listen_start inet->inet_sport:%d,inet->inet_num:%d",
+		inet->inet_sport, inet->inet_num);
+#endif
 		sk_dst_reset(sk);
 		sk->sk_prot->hash(sk);
 

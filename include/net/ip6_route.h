@@ -38,6 +38,16 @@ struct route_info {
  */
 #define IP6_MAX_MTU (0xFFFF + sizeof(struct ipv6hdr))
 
+/* Use to control all vzw feature*/
+#define MTK_IPV6_VZW_ALL        0x000C
+
+/* Use to control vzw feature except for
+ * the fixed rs interval time of 4s
+ */
+#define MTK_IPV6_EX_RS_INTERVAL 0x01F7
+
+extern int sysctl_optr;
+
 /*
  * rt6_srcprefs2flags() and rt6_flags2srcprefs() translate
  * between IPV6_ADDR_PREFERENCES socket option values
@@ -109,6 +119,9 @@ struct rt6_info *addrconf_dst_alloc(struct inet6_dev *idev,
  */
 struct rt6_info *rt6_get_dflt_router(const struct in6_addr *addr,
 				     struct net_device *dev);
+
+struct rt6_info *rt6_get_dflt_router_expires(struct net_device *dev);
+
 struct rt6_info *rt6_add_dflt_router(const struct in6_addr *gwaddr,
 				     struct net_device *dev, unsigned int pref);
 

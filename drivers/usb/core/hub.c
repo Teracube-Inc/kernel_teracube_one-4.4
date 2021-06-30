@@ -1947,6 +1947,8 @@ void usb_set_device_state(struct usb_device *udev,
 	unsigned long flags;
 	int wakeup = -1;
 
+	dev_info(&udev->dev, "%s %d->%d\n", __func__, udev->state, new_state);
+
 	spin_lock_irqsave(&device_state_lock, flags);
 	if (udev->state == USB_STATE_NOTATTACHED)
 		;	/* do nothing */
@@ -2712,6 +2714,9 @@ static int hub_port_reset(struct usb_hub *hub, int port1,
 	int i, status;
 	u16 portchange, portstatus;
 	struct usb_port *port_dev = hub->ports[port1 - 1];
+
+	dev_info(&port_dev->dev, "%s delay=%d %s\n",
+						__func__, delay, warm?"WARM":"");
 
 	if (!hub_is_superspeed(hub->hdev)) {
 		if (warm) {
@@ -4589,6 +4594,9 @@ hub_port_init(struct usb_hub *hub, struct usb_device *udev, int port1,
 		goto fail;
 	}
 
+	dev_info(&udev->dev, "USB v%x:p%x\n", le16_to_cpu(udev->descriptor.idVendor),
+		le16_to_cpu(udev->descriptor.idProduct));
+
 	usb_detect_quirks(udev);
 
 	if (udev->wusb == 0 && le16_to_cpu(udev->descriptor.bcdUSB) >= 0x0201) {
@@ -4688,6 +4696,7 @@ hub_power_remaining(struct usb_hub *hub)
 	return remaining;
 }
 
+static struct usb_device *cur_udev;
 static void hub_port_connect(struct usb_hub *hub, int port1, u16 portstatus,
 		u16 portchange)
 {
@@ -4699,6 +4708,9 @@ static void hub_port_connect(struct usb_hub *hub, int port1, u16 portstatus,
 	struct usb_port *port_dev = hub->ports[port1 - 1];
 	struct usb_device *udev = port_dev->child;
 	static int unreliable_port = -1;
+
+	dev_info(&port_dev->dev, "%s portstatus=0x%x portchange=0x%x\n",
+		__func__, portstatus, portchange);
 
 	/* Disconnect any existing devices under this port */
 	if (udev) {
@@ -4765,6 +4777,8 @@ static void hub_port_connect(struct usb_hub *hub, int port1, u16 portstatus,
 					"couldn't allocate usb_device\n");
 			goto done;
 		}
+		/* catch current USB device */
+		cur_udev = udev;
 
 		usb_set_device_state(udev, USB_STATE_POWERED);
 		udev->bus_mA = hub->mA_per_port;
@@ -4900,7 +4914,7 @@ loop:
 			!(hcd->driver->port_handed_over)(hcd, port1)) {
 		if (status != -ENOTCONN && status != -ENODEV)
 			dev_err(&port_dev->dev,
-					"unable to enumerate USB device\n");
+					"unable to enumerate USB device status=%d\n", status);
 	}
 
 done:
@@ -5774,3 +5788,72 @@ acpi_handle usb_get_hub_port_acpi_handle(struct usb_device *hdev,
 	return ACPI_HANDLE(&hub->ports[port1 - 1]->dev);
 }
 #endif
+static struct delayed_work ep0_stress_work;
+static void do_ep0_stress_work(struct work_struct *data)
+{
+	int ret;
+	u16 status;
+	static DEFINE_RATELIMIT_STATE(ratelimit, HZ, 30);
+	static int skip_cnt;
+
+
+	ret = usb_get_status(cur_udev, USB_RECIP_DEVICE, 0, &status);
+	if (__ratelimit(&ratelimit)) {
+		pr_notice("%s, usb_get_status<%d>, cur_udev<%p>\n", __func__, ret, cur_udev);
+		skip_cnt = 0;
+	} else
+		skip_cnt++;
+
+	if (ret == 0)
+		schedule_delayed_work(&ep0_stress_work, 0);
+	else {
+		pr_notice("%s, usb_get_status<%d>, cur_udev<%p>", __func__, ret, cur_udev);
+		usb_autosuspend_device(cur_udev);
+	}
+}
+static void trigger_ep0_stress_work(void)
+{
+	int ret;
+
+	ret = usb_autoresume_device(cur_udev);
+	pr_notice("%s, ret<%d>, cur_udev<%p>\n", __func__, ret, cur_udev);
+	if (ret)
+		return;
+
+	INIT_DELAYED_WORK(&ep0_stress_work, do_ep0_stress_work);
+	schedule_delayed_work(&ep0_stress_work, 0);
+
+}
+static int option;
+static int set_option(const char *val, const struct kernel_param *kp)
+{
+	int local_option;
+	int rv;
+
+	/* update module parameter */
+	rv = param_set_int(val, kp);
+	if (rv)
+		return rv;
+
+	/* update local_option */
+	rv = kstrtoint(val, 10, &local_option);
+	if (rv != 0)
+		return rv;
+
+	pr_notice("option:%d, local_option:%d\n", option, local_option);
+
+	switch (local_option) {
+	case 0:
+		pr_notice("case %d\n", local_option);
+		trigger_ep0_stress_work();
+		break;
+	default:
+		break;
+	}
+	return 0;
+}
+static struct kernel_param_ops option_param_ops = {
+	.set = set_option,
+	.get = param_get_int,
+};
+module_param_cb(option, &option_param_ops, &option, 0400);

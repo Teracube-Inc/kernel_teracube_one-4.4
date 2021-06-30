@@ -29,6 +29,7 @@
 #include <asm/cputype.h>
 #include <asm/pgtable.h>
 #include <asm/tlbflush.h>
+#include <mt-plat/mtk_ram_console.h>
 
 #ifdef CONFIG_PID_IN_CONTEXTIDR
 static inline void contextidr_thread_switch(struct task_struct *next)
@@ -116,10 +117,13 @@ static inline void __cpu_set_tcr_t0sz(unsigned long t0sz)
 static inline void cpu_uninstall_idmap(void)
 {
 	struct mm_struct *mm = current->active_mm;
+	unsigned int cpu = smp_processor_id();
 
 	cpu_set_reserved_ttbr0();
+	aee_rr_rec_hotplug_footprint(cpu, 4);
 	local_flush_tlb_all();
 	cpu_set_default_tcr_t0sz();
+	aee_rr_rec_hotplug_footprint(cpu, 5);
 
 	if (mm != &init_mm && !system_uses_ttbr0_pan())
 		cpu_switch_mm(mm->pgd, mm);

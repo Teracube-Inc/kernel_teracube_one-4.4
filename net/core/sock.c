@@ -135,6 +135,7 @@
 
 #include <linux/filter.h>
 
+
 #include <trace/events/sock.h>
 
 #ifdef CONFIG_INET
@@ -397,8 +398,8 @@ static int sock_set_timeout(long *timeo_p, char __user *optval, int optlen)
 		*timeo_p = 0;
 		if (warned < 10 && net_ratelimit()) {
 			warned++;
-			pr_info("%s: `%s' (pid %d) tries to set negative timeout\n",
-				__func__, current->comm, task_pid_nr(current));
+			pr_info_ratelimited("%s: `%s' (pid %d) tries to set negative timeout\n",
+					    __func__, current->comm, task_pid_nr(current));
 		}
 		return 0;
 	}
@@ -1457,8 +1458,8 @@ void sk_destruct(struct sock *sk)
 	sock_disable_timestamp(sk, SK_FLAGS_TIMESTAMP);
 
 	if (atomic_read(&sk->sk_omem_alloc))
-		pr_debug("%s: optmem leakage (%d bytes) detected\n",
-			 __func__, atomic_read(&sk->sk_omem_alloc));
+		pr_info_ratelimited("%s: optmem leakage (%d bytes) detected\n",
+				    __func__, atomic_read(&sk->sk_omem_alloc));
 
 	if (sk->sk_frag.page) {
 		put_page(sk->sk_frag.page);
@@ -1848,7 +1849,6 @@ static long sock_wait_for_wmem(struct sock *sk, long timeo)
 	return timeo;
 }
 
-
 /*
  *	Generic send/receive buffer handlers
  */
@@ -1881,6 +1881,7 @@ struct sk_buff *sock_alloc_send_pskb(struct sock *sk, unsigned long header_len,
 			goto failure;
 		if (signal_pending(current))
 			goto interrupted;
+
 		timeo = sock_wait_for_wmem(sk, timeo);
 	}
 	skb = alloc_skb_with_frags(header_len, data_len, max_page_order,
@@ -2320,7 +2321,7 @@ static void sock_def_readable(struct sock *sk)
 	rcu_read_lock();
 	wq = rcu_dereference(sk->sk_wq);
 	if (wq_has_sleeper(wq))
-		wake_up_interruptible_sync_poll(&wq->wait, POLLIN | POLLPRI |
+		wake_up_interruptible_poll(&wq->wait, POLLIN | POLLPRI |
 						POLLRDNORM | POLLRDBAND);
 	sk_wake_async(sk, SOCK_WAKE_WAITD, POLL_IN);
 	rcu_read_unlock();

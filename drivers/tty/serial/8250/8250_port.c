@@ -1505,7 +1505,6 @@ void serial8250_tx_chars(struct uart_8250_port *up)
 	if (uart_circ_chars_pending(xmit) < WAKEUP_CHARS)
 		uart_write_wakeup(port);
 
-	DEBUG_INTR("THRE...");
 
 	/*
 	 * With RPM enabled, we have to wait until the FIFO is empty before the
@@ -1559,8 +1558,15 @@ int serial8250_handle_irq(struct uart_port *port, unsigned int iir)
 	spin_lock_irqsave(&port->lock, flags);
 
 	status = serial_port_in(port, UART_LSR);
+#ifndef CONFIG_FIQ_DEBUGGER
+#ifdef CONFIG_MTK_ENG_BUILD
+#ifdef CONFIG_MTK_PRINTK_UART_CONSOLE
+	if (uart_console(port) && (serial_port_in(port, UART_LSR) & 0x01))
+		printk_disable_uart = 0;
+#endif
+#endif
+#endif
 
-	DEBUG_INTR("status = %x...", status);
 
 	if (status & (UART_LSR_DR | UART_LSR_BI)) {
 		if (up->dma)
@@ -1723,6 +1729,7 @@ static void wait_for_xmitr(struct uart_8250_port *up, int bits)
 		if (--tmout == 0)
 			break;
 		udelay(1);
+		touch_nmi_watchdog();
 	}
 
 	/* Wait up to 1s for flow control if necessary */
@@ -2060,8 +2067,12 @@ void serial8250_do_shutdown(struct uart_port *port)
 	/*
 	 * Disable interrupts from this port
 	 */
+	spin_lock_irqsave(&port->lock, flags);
 	up->ier = 0;
 	serial_port_out(port, UART_IER, 0);
+	spin_unlock_irqrestore(&port->lock, flags);
+
+	synchronize_irq(port->irq);
 
 	if (up->dma)
 		serial8250_release_dma(up);
@@ -2234,8 +2245,6 @@ static unsigned int
 serial8250_get_baud_rate(struct uart_port *port, struct ktermios *termios,
 			 struct ktermios *old)
 {
-	unsigned int tolerance = port->uartclk / 100;
-
 	/*
 	 * Ask the core to calculate the divisor for us.
 	 * Allow 1% tolerance at the upper limit so uart clks marginally
@@ -2244,7 +2253,7 @@ serial8250_get_baud_rate(struct uart_port *port, struct ktermios *termios,
 	 */
 	return uart_get_baud_rate(port, termios, old,
 				  port->uartclk / 16 / 0xffff,
-				  (port->uartclk + tolerance) / 16);
+				  port->uartclk);
 }
 
 void

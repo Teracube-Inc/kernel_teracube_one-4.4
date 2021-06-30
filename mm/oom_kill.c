@@ -35,9 +35,13 @@
 #include <linux/freezer.h>
 #include <linux/ftrace.h>
 #include <linux/ratelimit.h>
+#include <linux/stacktrace.h>
+#include <linux/spinlock.h>
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/oom.h>
+
+#include "internal.h"
 
 int sysctl_panic_on_oom;
 int sysctl_oom_kill_allocating_task;
@@ -304,7 +308,7 @@ static struct task_struct *select_bad_process(struct oom_control *oc,
 	struct task_struct *chosen = NULL;
 	unsigned long chosen_points = 0;
 
-	rcu_read_lock();
+	read_lock(&tasklist_lock);
 	for_each_process_thread(g, p) {
 		unsigned int points;
 
@@ -316,7 +320,7 @@ static struct task_struct *select_bad_process(struct oom_control *oc,
 		case OOM_SCAN_CONTINUE:
 			continue;
 		case OOM_SCAN_ABORT:
-			rcu_read_unlock();
+			read_unlock(&tasklist_lock);
 			return (struct task_struct *)(-1UL);
 		case OOM_SCAN_OK:
 			break;
@@ -333,7 +337,7 @@ static struct task_struct *select_bad_process(struct oom_control *oc,
 	}
 	if (chosen)
 		get_task_struct(chosen);
-	rcu_read_unlock();
+	read_unlock(&tasklist_lock);
 
 	*ppoints = chosen_points * 1000 / totalpages;
 	return chosen;
@@ -383,6 +387,12 @@ static void dump_tasks(struct mem_cgroup *memcg, const nodemask_t *nodemask)
 	rcu_read_unlock();
 }
 
+/* show tasks' memory usage */
+void show_task_mem(void)
+{
+	dump_tasks(NULL, NULL);
+}
+
 static void dump_header(struct oom_control *oc, struct task_struct *p,
 			struct mem_cgroup *memcg)
 {
@@ -397,6 +407,14 @@ static void dump_header(struct oom_control *oc, struct task_struct *p,
 		show_mem(SHOW_MEM_FILTER_NODES);
 	if (sysctl_oom_dump_tasks)
 		dump_tasks(memcg, oc->nodemask);
+
+#ifdef CONFIG_MTK_ION
+	ion_mm_heap_memory_detail();
+#endif
+#ifdef CONFIG_MTK_GPU_SUPPORT
+	if (mtk_dump_gpu_memory_usage() == false)
+		pr_warn("mtk_dump_gpu_memory_usage not support\n");
+#endif
 }
 
 /*
@@ -510,6 +528,7 @@ void oom_kill_process(struct oom_control *oc, struct task_struct *p,
 		      struct mem_cgroup *memcg, const char *message)
 {
 	struct task_struct *victim = p;
+	struct task_struct *hold = p;
 	struct task_struct *child;
 	struct task_struct *t;
 	struct mm_struct *mm;
@@ -542,6 +561,7 @@ void oom_kill_process(struct oom_control *oc, struct task_struct *p,
 	 * parent.  This attempts to lose the minimal amount of work done while
 	 * still freeing memory.
 	 */
+	get_task_struct(hold);
 	read_lock(&tasklist_lock);
 
 	/*
@@ -575,12 +595,14 @@ void oom_kill_process(struct oom_control *oc, struct task_struct *p,
 	p = find_lock_task_mm(victim);
 	if (!p) {
 		put_task_struct(victim);
+		put_task_struct(hold);
 		return;
 	} else if (victim != p) {
 		get_task_struct(p);
 		put_task_struct(victim);
 		victim = p;
 	}
+	put_task_struct(hold);
 
 	/* Get a reference to safely compare mm after task_unlock(victim) */
 	mm = victim->mm;
@@ -625,6 +647,23 @@ void oom_kill_process(struct oom_control *oc, struct task_struct *p,
 	rcu_read_unlock();
 
 	mmdrop(mm);
+#ifdef CONFIG_MTK_ENG_BUILD
+	if (atomic_read(&victim->usage) == 1) {
+		unsigned long flags;
+		int i;
+
+		spin_lock_irqsave(&victim->stack_trace_lock, flags);
+		pr_err("oom_kill_process put task with tsk->usage == 1, tsk previous bt:\n");
+		for (i = 0; i < 2; i++) {
+			pr_info("bt: %d\n", i);
+			victim->stack_trace.entries = victim->addrs[i];
+			print_stack_trace(&victim->stack_trace, 0);
+		}
+		spin_unlock_irqrestore(&victim->stack_trace_lock, flags);
+		pr_info("victim: %s\n, addr: 0x%lx, victim->mm: 0x%lx\n", victim->comm,
+				(unsigned long) victim, (unsigned long)victim->mm);
+	}
+#endif
 	put_task_struct(victim);
 }
 #undef K

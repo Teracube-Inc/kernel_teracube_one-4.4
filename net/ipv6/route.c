@@ -1925,20 +1925,8 @@ static struct rt6_info *ip6_route_info_create(struct fib6_config *cfg)
 		int gwa_type;
 
 		gw_addr = &cfg->fc_gateway;
-		gwa_type = ipv6_addr_type(gw_addr);
-
-		/* if gw_addr is local we will fail to detect this in case
-		 * address is still TENTATIVE (DAD in progress). rt6_lookup()
-		 * will return already-added prefix route via interface that
-		 * prefix route was assigned to, which might be non-loopback.
-		 */
-		err = -EINVAL;
-		if (ipv6_chk_addr_and_flags(net, gw_addr,
-					    gwa_type & IPV6_ADDR_LINKLOCAL ?
-					    dev : NULL, 0, 0))
-			goto out;
-
 		rt->rt6i_gateway = *gw_addr;
+		gwa_type = ipv6_addr_type(gw_addr);
 
 		if (gwa_type != (IPV6_ADDR_LINKLOCAL|IPV6_ADDR_UNICAST)) {
 			struct rt6_info *grt;
@@ -1950,6 +1938,7 @@ static struct rt6_info *ip6_route_info_create(struct fib6_config *cfg)
 			   (SIT, PtP, NBMA NOARP links) it is handy to allow
 			   some exceptions. --ANK
 			 */
+			err = -EINVAL;
 			if (!(gwa_type & IPV6_ADDR_UNICAST))
 				goto out;
 
@@ -2349,6 +2338,29 @@ struct rt6_info *rt6_get_dflt_router(const struct in6_addr *addr, struct net_dev
 		if (dev == rt->dst.dev &&
 		    ((rt->rt6i_flags & (RTF_ADDRCONF | RTF_DEFAULT)) == (RTF_ADDRCONF | RTF_DEFAULT)) &&
 		    ipv6_addr_equal(&rt->rt6i_gateway, addr))
+			break;
+	}
+	if (rt)
+		dst_hold(&rt->dst);
+	read_unlock_bh(&table->tb6_lock);
+	return rt;
+}
+
+struct rt6_info *rt6_get_dflt_router_expires(struct net_device *dev)
+{
+	struct rt6_info *rt;
+	struct fib6_table *table;
+
+	table = fib6_get_table(dev_net(dev),
+			       addrconf_rt_table(dev, RT6_TABLE_MAIN));
+	if (!table)
+		return NULL;
+
+	read_lock_bh(&table->tb6_lock);
+	for (rt = table->tb6_root.leaf; rt; rt = rt->dst.rt6_next) {
+		if (dev == rt->dst.dev &&
+		    ((rt->rt6i_flags & (RTF_ADDRCONF | RTF_DEFAULT | RTF_GATEWAY | RTF_EXPIRES))
+		    == (RTF_ADDRCONF | RTF_DEFAULT | RTF_GATEWAY | RTF_EXPIRES)))
 			break;
 	}
 	if (rt)

@@ -29,6 +29,7 @@ my $showfile = 0;
 my $file = 0;
 my $check = 0;
 my $check_orig = 0;
+my $mtk_check = 0;
 my $summary = 1;
 my $mailback = 0;
 my $summary_file = 0;
@@ -49,6 +50,7 @@ my $ignore_perl_version = 0;
 my $minimum_perl_version = 5.10.0;
 my $min_conf_desc_length = 4;
 my $spelling_file = "$D/spelling.txt";
+my $deprecated_config_file = "$D/deprecated_config.txt";
 my $codespell = 0;
 my $codespellfile = "/usr/share/codespell/dictionary.txt";
 my $color = 1;
@@ -143,6 +145,7 @@ GetOptions(
 	'f|file!'	=> \$file,
 	'subjective!'	=> \$check,
 	'strict!'	=> \$check,
+	'mtk-strict!'   => \$mtk_check,
 	'ignore=s'	=> \@ignore,
 	'types=s'	=> \@use,
 	'show-types!'	=> \$show_types,
@@ -373,7 +376,7 @@ our $typeTypedefs = qr{(?x:
 our $zero_initializer = qr{(?:(?:0[xX])?0+$Int_type?|NULL|false)\b};
 
 our $logFunctions = qr{(?x:
-	printk(?:_ratelimited|_once|)|
+	printk(?:_ratelimited|_once|_deferred_once|_deferred|)|
 	(?:[a-z0-9]+_){1,2}(?:printk|emerg|alert|crit|err|warning|warn|notice|info|debug|dbg|vdbg|devel|cont|WARN)(?:_ratelimited|_once|)|
 	WARN(?:_RATELIMIT|_ONCE|)|
 	panic|
@@ -480,6 +483,26 @@ our $allowed_asm_includes = qr{(?x:
 # Load common spelling mistakes and build regular expression list.
 my $misspellings;
 my %spelling_fix;
+my @deprecated_config;
+
+if(open (my $config, '<', $deprecated_config_file)) {
+	my $i = 0;
+	while(<$config>) {
+		my $line = $_;
+
+		$line =~ s/\s*\n?$//g;
+		$line =~ s/^\s*//g;
+
+		next if ($line =~ m/^\s*#/);
+		next if ($line =~ m/^\s*$/);
+
+		push(@deprecated_config, $line);
+		$i++;
+	}
+	close($config);
+} else {
+	warn "No deprecated config will be found - file '$deprecated_config_file': $!\n";
+}
 
 if (open(my $spelling, '<', $spelling_file)) {
 	while (<$spelling>) {
@@ -2486,6 +2509,32 @@ sub process {
 				    $fix) {
 					$fixed[$fixlinenr] =~ s/(^|[^A-Za-z@])($typo)($|[^A-Za-z@])/$1$typo_fix$3/;
 				}
+			}
+		}
+
+# Check for using deprecated configs mistakes
+		if($mtk_check && @deprecated_config) {
+			foreach (@deprecated_config) {
+				if($line =~ /^\+.*($_)/) {
+					ERROR("USE_DEPRECATED_CONFIG",
+						"please do not use deprecated config '$_'\n" . $herecurr);
+				}
+			}
+		}
+
+# check for ARCH_MTXXXX, please use MACH_MTXXXX instead
+		if ($mtk_check && $line =~ /^\+.*\CONFIG_ARCH_MT\s*[0-9]/) {
+			ERROR("USE_ARCH_MTXXXX",
+				"please use MACH_MTXXXX instead of ARCH_MTXXXXX\n" . $herecurr);
+		}
+
+# Check all Makefiles, remove unnecessary build message
+		if ($mtk_check && ($realfile =~ /Makefile.*/ || $realfile =~ /Kbuild.*/)) {
+			if ($rawline =~ /^\+\t*\s*(\@*echo).*/ || $rawline =~ /^\+\t*\s*(\$\(info).*/ ||
+			    $rawline =~ /^\+\t*\s*(\$\(warning).*/) {
+				my $herevet = "$here\n" . cat_vet($rawline) . "\n";
+				WARN("CHECK_BUILD_MESSAGE",
+				     "please review your build message if it is necessary.\n" . $herevet);
 			}
 		}
 
@@ -4497,6 +4546,17 @@ sub process {
 						     "Use #include <linux/$file> instead of <asm/$file>\n" . $herecurr);
 					}
 				}
+			}
+		}
+
+# warn if <foo.h> is #included but foo.h is available in current directory
+		if ($mtk_check && $tree && $rawline =~ m{^.\s*\#\s*include\s*\<(.*)\.h\>}) {
+			my $file = "$1.h";
+			my $realpath = dirname($realfile);
+			my $checkfile = "$realpath/$file";
+			if (-f "$root/$checkfile") {
+				WARN("SUSPECT_SYSTEM_INCLUDE",
+					"Use #include \"$file\" instead of <$file>\n" . $herecurr);
 			}
 		}
 

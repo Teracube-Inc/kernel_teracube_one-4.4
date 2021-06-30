@@ -219,5 +219,8 @@ int  rndis_signal_connect(struct rndis_params *params);
 int  rndis_signal_disconnect(struct rndis_params *params);
 int  rndis_state(struct rndis_params *params);
 extern void rndis_set_host_mac(struct rndis_params *params, const u8 *addr);
+#ifdef CONFIG_MTK_MD_DIRECT_TETHERING_SUPPORT
+void rndis_set_direct_tethering(struct usb_function *f, bool direct);
+#endif
 
 #endif  /* _LINUX_RNDIS_H */

@@ -372,13 +372,27 @@ dev_t dm_get_dev_t(const char *path)
 {
 	dev_t uninitialized_var(dev);
 	struct block_device *bdev;
+	char *dev_path = kstrdup(path, GFP_KERNEL);
 
-	bdev = lookup_bdev(path);
-	if (IS_ERR(bdev))
-		dev = name_to_dev_t(path);
-	else {
-		dev = bdev->bd_dev;
-		bdput(bdev);
+	if (!dev_path)
+		return -ENOMEM;
+
+	if (strncmp(dev_path, "PARTUUID=", 9) == 0) {
+		dev = name_to_dev_t(dev_path);
+		if (!dev) {
+			DMWARN("no dev found for %s", dev_path);
+			kfree(dev_path);
+			return -EINVAL;
+		}
+		kfree(dev_path);
+	} else {
+		bdev = lookup_bdev(path);
+		if (IS_ERR(bdev))
+			dev = name_to_dev_t(path);
+		else {
+			dev = bdev->bd_dev;
+			bdput(bdev);
+		}
 	}
 
 	return dev;
@@ -508,14 +522,14 @@ static int adjoin(struct dm_table *table, struct dm_target *ti)
  * On the other hand, dm-switch needs to process bulk data using messages and
  * excessive use of GFP_NOIO could cause trouble.
  */
-static char **realloc_argv(unsigned *array_size, char **old_argv)
+static char **realloc_argv(unsigned *size, char **old_argv)
 {
 	char **argv;
 	unsigned new_size;
 	gfp_t gfp;
 
-	if (*array_size) {
-		new_size = *array_size * 2;
+	if (*size) {
+		new_size = *size * 2;
 		gfp = GFP_KERNEL;
 	} else {
 		new_size = 8;
@@ -523,8 +537,8 @@ static char **realloc_argv(unsigned *array_size, char **old_argv)
 	}
 	argv = kmalloc(new_size * sizeof(*argv), gfp);
 	if (argv) {
-		memcpy(argv, old_argv, *array_size * sizeof(*argv));
-		*array_size = new_size;
+		memcpy(argv, old_argv, *size * sizeof(*argv));
+		*size = new_size;
 	}
 
 	kfree(old_argv);
@@ -1542,6 +1556,9 @@ void dm_table_set_restrictions(struct dm_table *t, struct request_queue *q,
 	smp_mb();
 	if (dm_table_request_based(t))
 		queue_flag_set_unlocked(QUEUE_FLAG_STACKABLE, q);
+
+	/* io_pages is used for readahead */
+	q->backing_dev_info->io_pages = limits->max_sectors >> (PAGE_SHIFT - 9);
 }
 
 unsigned int dm_table_get_num_targets(struct dm_table *t)
@@ -1660,7 +1677,7 @@ int dm_table_any_congested(struct dm_table *t, int bdi_bits)
 		char b[BDEVNAME_SIZE];
 
 		if (likely(q))
-			r |= bdi_congested(&q->backing_dev_info, bdi_bits);
+			r |= bdi_congested(q->backing_dev_info, bdi_bits);
 		else
 			DMWARN_LIMIT("%s: any_congested: nonexistent device %s",
 				     dm_device_name(t->md),

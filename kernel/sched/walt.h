@@ -32,7 +32,7 @@ void walt_migrate_sync_cpu(int cpu);
 void walt_init_cpu_efficiency(void);
 u64 walt_ktime_clock(void);
 void walt_account_irqtime(int cpu, struct task_struct *curr, u64 delta,
-                                  u64 wallclock);
+		u64 wallclock);
 
 u64 walt_irqload(int cpu);
 int walt_cpu_high_irqload(int cpu);
@@ -59,6 +59,6 @@ static inline u64 walt_ktime_clock(void) { return 0; }
 
 #endif /* CONFIG_SCHED_WALT */
 
-extern bool walt_disabled;
+extern unsigned int walt_disabled;
 
 #endif

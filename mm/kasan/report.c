@@ -27,6 +27,7 @@
 #include <linux/types.h>
 #include <linux/kasan.h>
 #include <linux/module.h>
+#include <mt-plat/aee.h>
 
 #include <asm/sections.h>
 
@@ -352,8 +353,10 @@ static void kasan_report_error(struct kasan_access_info *info)
 		pr_err("\n");
 		print_shadow_for_address(info->first_bad_addr);
 	}
-
+	
 	kasan_end_report(&flags);
+	/* trigger KE to get the KAsan corruption message */
+	BUG();
 }
 
 static unsigned long kasan_flags;
@@ -401,6 +404,7 @@ void kasan_report(unsigned long addr, size_t size,
 	disable_trace_on_warning();
 
 	info.access_addr = (void *)addr;
+	info.first_bad_addr = (void *)addr;
 	info.access_size = size;
 	info.is_write = is_write;
 	info.ip = ip;

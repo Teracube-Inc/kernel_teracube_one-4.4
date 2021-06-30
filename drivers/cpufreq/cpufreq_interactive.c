@@ -31,8 +31,24 @@
 #include <linux/kthread.h>
 #include <linux/slab.h>
 
+#ifdef CONFIG_MACH_MT6757
+#include <mtk_cpufreq.h>
+#define CPUDVFS_POWER_MODE
+#endif
+
+#if defined(CONFIG_CPU_FREQ_SCHED_ASSIST) && defined(CONFIG_MTK_ACAO_SUPPORT)
+#include <mtk_cpufreq_api.h>
+#endif
+
+#ifdef CPUDVFS_POWER_MODE
+static unsigned int hispeed_freq_perf;
+static unsigned int min_sample_time_perf;
+#endif
+
 #define CREATE_TRACE_POINTS
 #include <trace/events/cpufreq_interactive.h>
+
+#include <mt-plat/met_drv.h>
 
 struct cpufreq_interactive_cpuinfo {
 	struct timer_list cpu_timer;
@@ -348,6 +364,12 @@ static void cpufreq_interactive_timer(unsigned long data)
 	unsigned long flags;
 	u64 max_fvtime;
 
+#ifdef CPUDVFS_POWER_MODE
+	/* default(normal), low power, just make, performance(sports) */
+	int min_sample_t[4] = { 80, 20, 20, 80 };
+	int ppb_idx;
+#endif
+
 	if (!down_read_trylock(&pcpu->enable_sem))
 		return;
 	if (!pcpu->governor_enabled)
@@ -367,6 +389,22 @@ static void cpufreq_interactive_timer(unsigned long data)
 	loadadjfreq = (unsigned int)cputime_speedadj * 100;
 	cpu_load = loadadjfreq / pcpu->policy->cur;
 	tunables->boosted = tunables->boost_val || now < tunables->boostpulse_endtime;
+
+#ifdef CPUDVFS_POWER_MODE
+	ppb_idx = mt_cpufreq_get_ppb_state();
+
+	{
+		unsigned int idx = mt_cpufreq_ppb_hispeed_freq(data, ppb_idx);
+
+		tunables->hispeed_freq = pcpu->freq_table[idx].frequency;
+		tunables->min_sample_time = min_sample_t[ppb_idx] * USEC_PER_MSEC;
+
+		if (hispeed_freq_perf != 0)
+			tunables->hispeed_freq = hispeed_freq_perf;
+		if (min_sample_time_perf != 0)
+			tunables->min_sample_time = min_sample_time_perf;
+	}
+#endif
 
 	if (cpu_load >= tunables->go_hispeed_load || tunables->boosted) {
 		if (pcpu->policy->cur < tunables->hispeed_freq) {
@@ -454,7 +492,14 @@ static void cpufreq_interactive_timer(unsigned long data)
 	spin_lock_irqsave(&speedchange_cpumask_lock, flags);
 	cpumask_set_cpu(data, &speedchange_cpumask);
 	spin_unlock_irqrestore(&speedchange_cpumask_lock, flags);
+
+#if 0
+	/* Not to wake up speedchange_task if schedule hint enable */
+	if (!mt_cpufreq_get_sched_enable())
+		wake_up_process(speedchange_task);
+#else
 	wake_up_process(speedchange_task);
+#endif
 
 rearm:
 	if (!timer_pending(&pcpu->cpu_timer))
@@ -530,6 +575,15 @@ static void cpufreq_interactive_adjust_cpu(unsigned int cpu,
 		pcpu->pol_floor_val_time = fvt;
 	}
 
+#if defined(CONFIG_CPU_FREQ_SCHED_ASSIST) && defined(CONFIG_MTK_ACAO_SUPPORT)
+	mt_cpufreq_set_by_wfi_load_cluster(arch_get_cluster_id(policy->cpu), max_freq);
+	if (max_freq != policy->cur) {
+		for_each_cpu(i, policy->cpus) {
+			pcpu = &per_cpu(cpuinfo, i);
+			pcpu->pol_hispeed_val_time = hvt;
+		}
+	}
+#else
 	if (max_freq != policy->cur) {
 		__cpufreq_driver_target(policy, max_freq, CPUFREQ_RELATION_H);
 		for_each_cpu(i, policy->cpus) {
@@ -537,6 +591,14 @@ static void cpufreq_interactive_adjust_cpu(unsigned int cpu,
 			pcpu->pol_hispeed_val_time = hvt;
 		}
 	}
+#endif
+
+	if (policy->cpu < 4)
+		met_tag_oneshot(0, "INT_LL", max_freq);
+	else if (policy->cpu >= 4)
+		met_tag_oneshot(0, "INT_L", max_freq);
+	else if (policy->cpu >= 8)
+		met_tag_oneshot(0, "INT_B", max_freq);
 
 	trace_cpufreq_interactive_setspeed(cpu, max_freq, policy->cur);
 }
@@ -819,6 +881,11 @@ static ssize_t store_hispeed_freq(struct cpufreq_interactive_tunables *tunables,
 	if (ret < 0)
 		return ret;
 	tunables->hispeed_freq = val;
+
+#ifdef CPUDVFS_POWER_MODE
+	hispeed_freq_perf = val;
+#endif
+
 	return count;
 }
 
@@ -857,6 +924,11 @@ static ssize_t store_min_sample_time(struct cpufreq_interactive_tunables
 	if (ret < 0)
 		return ret;
 	tunables->min_sample_time = val;
+
+#ifdef CPUDVFS_POWER_MODE
+	min_sample_time_perf = val;
+#endif
+
 	return count;
 }
 
@@ -999,7 +1071,7 @@ static ssize_t store_io_is_busy(struct cpufreq_interactive_tunables *tunables,
  */
 #define show_gov_pol_sys(file_name)					\
 static ssize_t show_##file_name##_gov_sys				\
-(struct kobject *kobj, struct attribute *attr, char *buf)		\
+(struct kobject *kobj, struct kobj_attribute *attr, char *buf)		\
 {									\
 	return show_##file_name(common_tunables, buf);			\
 }									\
@@ -1012,7 +1084,7 @@ static ssize_t show_##file_name##_gov_pol				\
 
 #define store_gov_pol_sys(file_name)					\
 static ssize_t store_##file_name##_gov_sys				\
-(struct kobject *kobj, struct attribute *attr, const char *buf,		\
+(struct kobject *kobj, struct kobj_attribute *attr, const char *buf,		\
 	size_t count)							\
 {									\
 	return store_##file_name(common_tunables, buf, count);		\
@@ -1177,8 +1249,12 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 		tunables->min_sample_time = DEFAULT_MIN_SAMPLE_TIME;
 		tunables->timer_rate = DEFAULT_TIMER_RATE;
 		tunables->boostpulse_duration_val = DEFAULT_MIN_SAMPLE_TIME;
-		tunables->timer_slack_val = DEFAULT_TIMER_SLACK;
 
+#if (!defined(CONFIG_CPU_FREQ_SCHED_ASSIST) && !defined(CONFIG_CPU_FREQ_GOV_SCHEDPLUS))
+		tunables->timer_slack_val = DEFAULT_TIMER_SLACK;
+#else
+		tunables->timer_slack_val = -1;
+#endif
 		spin_lock_init(&tunables->target_loads_lock);
 		spin_lock_init(&tunables->above_hispeed_delay_lock);
 
@@ -1228,7 +1304,7 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 		mutex_lock(&gov_lock);
 
 		freq_table = cpufreq_frequency_get_table(policy->cpu);
-		if (!tunables->hispeed_freq)
+		if (tunables && !tunables->hispeed_freq)
 			tunables->hispeed_freq = policy->max;
 
 		for_each_cpu(j, policy->cpus) {

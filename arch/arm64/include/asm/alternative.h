@@ -169,6 +169,23 @@ alternative_endif
 #define _ALTERNATIVE_CFG(insn1, insn2, cap, cfg, ...)	\
 	alternative_insn insn1, insn2, cap, IS_ENABLED(cfg)
 
+.macro user_alternative_insn l insn1 insn2 cap
+661 :	\insn1
+662 :	.pushsection .altinstructions, "a"
+	altinstruction_entry 661b, 663f, \cap, 662b-661b, 664f-663f
+	.popsection
+	.pushsection .altinstr_replacement, "ax"
+663 :	\insn2
+664 :	.popsection
+	.if ((664b-663b) != (662b-661b))
+		.error "Alternatives instruction length mismatch"
+	.endif
+	.pushsection __ex_table, "a"
+	.align 3
+	.quad 661b, \l
+	.popsection
+.endm
+
 .macro user_alt, label, oldinstr, newinstr, cond
 9999:	alternative_insn "\oldinstr", "\newinstr", \cond
 	_ASM_EXTABLE 9999b, \label

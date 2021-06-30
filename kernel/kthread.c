@@ -20,6 +20,7 @@
 #include <linux/uaccess.h>
 #include <linux/cgroup.h>
 #include <trace/events/sched.h>
+#include <mt-plat/mtk_pidmap.h>
 
 static DEFINE_SPINLOCK(kthread_create_lock);
 static LIST_HEAD(kthread_create_list);
@@ -324,6 +325,7 @@ struct task_struct *kthread_create_on_node(int (*threadfn)(void *data),
 		vsnprintf(name, sizeof(name), namefmt, args);
 		set_task_comm(task, name);
 		va_end(args);
+		mtk_pidmap_update(task);
 		/*
 		 * root may have changed our (kthreadd's) priority or CPU mask.
 		 * The kernel thread should not inherit these properties.

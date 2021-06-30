@@ -360,7 +360,7 @@ extern void syscall_unregfunc(void);
 
 #define DECLARE_TRACE(name, proto, args)				\
 	__DECLARE_TRACE(name, PARAMS(proto), PARAMS(args),		\
-			cpu_online(raw_smp_processor_id()),		\
+			cpu_online(raw_smp_processor_id()),             \
 			PARAMS(void *__data, proto),			\
 			PARAMS(__data, args))
 
